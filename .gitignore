@@ -1,0 +1,34 @@
+# Secrets — NEVER commit these
+.env
+config/service_account.json
+*.json.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Data — generated at runtime
+data/chroma_db/
+data/tts_cache/
+data/logs/
+data/raw_docs/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
