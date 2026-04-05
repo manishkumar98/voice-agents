@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Agent — Dialogue Flow</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e8eaf0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1d2e 0%, #16213e 100%);
+      border-bottom: 1px solid #2d3154;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header .icon { font-size: 28px; }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #c9d1ff;
+    }
+
+    header p {
+      font-size: 13px;
+      color: #7880a8;
+      margin-top: 2px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 14px 32px;
+      background: #13172a;
+      border-bottom: 1px solid #1e2340;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: #9499be;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .diagram-wrapper {
+      padding: 32px;
+      overflow: auto;
+    }
+
+    .mermaid {
+      background: #1a1d2e;
+      border: 1px solid #2d3154;
+      border-radius: 12px;
+      padding: 32px;
+      min-height: 600px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="icon">🎙️</span>
+  <div>
+    <h1>Voice Agent — Dialogue Flow</h1>
+    <p>End-to-end state machine: from call connect to booking complete</p>
+  </div>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ff9966;"></div>Mandatory compliance step</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff9999;"></div>Guard / refusal (PII, advice)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#aabbff;"></div>MCP system execution</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#99ee99;"></div>Successful end state</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fff4dd;border:1px solid #ccc;"></div>Waitlist end state</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#eeeeee;border:1px solid #999;"></div>Timeout / disconnect</div>
+</div>
+
+<div class="diagram-wrapper">
+  <div class="mermaid">
+graph TD
+    %% 1. Initialization
+    Start((START: Call Connected)) --> Greet[Greet + Disclaimer<br/>'Informational Only']
+    Greet --> Intent{Identify Intent}
+
+    %% Silence / timeout
+    Intent --> |Silence x3| Timeout[Re-prompt x2<br/>Then Graceful Disconnect]
+    Timeout --> EndFail((END: Connection Closed))
+
+    %% Global guardrails — always active
+    Intent -.-> |User provides PII| PIIGuard[PII INTERCEPT:<br/>Do not share private data.<br/>Use secure link after booking.]
+    PIIGuard --> Intent
+
+    Intent -.-> |User asks for Advice| AdviceRefusal[REFUSE ADVICE:<br/>Cannot give financial tips.]
+    AdviceRefusal --> EndAdvice((END: Refusal))
+
+    %% Not interested / leave — handled globally in every state
+    Intent --> |Leave / Not interested| NoBooking[Thank User<br/>Happy to help when ready]
+    NoBooking --> EndExit((END: Graceful Exit))
+
+    %% Reschedule / Cancel
+    Intent --> |Reschedule / Cancel| VerifyCode{User has<br/>Booking Code?}
+    VerifyCode --> |No| HelpSearch[Use Secure Link Only<br/>No PII on call]
+    HelpSearch --> EndExit
+    VerifyCode --> |Yes| UpdateMCP[MCP: Update Calendar<br/>& Append Notes]
+    UpdateMCP --> EndMod((END: Modification Confirmed))
+
+    %% What to prepare
+    Intent --> |What to prepare| Prepare[Topic-specific Checklist]
+    Prepare --> TopicPrompt
+
+    %% 2. Topic Phase — clarity escalation (retry guard)
+    Intent --> |Book New| TopicPrompt[Topic Prompt:<br/>List 5 Categories]
+    TopicPrompt --> TopicCheck{Valid topic<br/>chosen?}
+
+    TopicCheck --> |Vague: ok / yes / hi| VagueLoop[Clarity Check:<br/>Pick one specific topic<br/>to continue]
+    VagueLoop --> RepeatTopic{Retry count<br/>&gt; 3?}
+    RepeatTopic --> |Yes| EndFail2((END: Technical Exit))
+    RepeatTopic --> |No| TopicPrompt
+
+    %% 3. Time preference — smart slot check
+    TopicCheck --> |Valid Topic| TimePref[Collect Day &amp; Time<br/>Preference in IST<br/>&#40;today / tomorrow / this week / date&#41;]
+    TimePref --> |Day only given| DayCheck{Slots exist<br/>on that day?}
+    DayCheck --> |Yes| CalendarCheck
+    DayCheck --> |No| NextDay[Name next available day<br/>Offer those slots instead]
+    NextDay --> CalendarCheck
+
+    TimePref --> CalendarCheck{Check Mock Calendar<br/>for matching slots}
+    CalendarCheck --> |No Slots Found| Waitlist[Waitlist:<br/>Capture Topic + Day + Time<br/>Generate WL-Code]
+    Waitlist --> EndWL((END: Waitlist Code<br/>&#43; context captured))
+
+    %% 4. Slot offering — ordinal selection + repeat guard
+    CalendarCheck --> |Slots Available| OfferSlots[Offer 2 Slots in IST]
+    OfferSlots --> Selection{User response}
+
+    Selection --> |Ordinal: 1st&#47;first → Opt 1<br/>2nd&#47;second → Opt 2| MapSlot[Map to Slot ID<br/>Confirm date + time]
+    Selection --> |Matches slot by time&#47;day| MapSlot
+    Selection --> |Genuinely new preference| TimePref
+    Selection --> |Same input repeated 3x| RepeatSlot[Circuit Breaker:<br/>Waitlist Fallback<br/>&#40;with context&#41;]
+    RepeatSlot --> EndWL
+
+    %% 5. Confirmation & exit
+    MapSlot --> Confirm[Explicit Confirmation:<br/>Repeat IST date + time + topic]
+    Confirm --> |Nevermind / leave| NoBooking
+    Confirm --> |Confirmed| MCP[MCP EXECUTION:<br/>Calendar + Notes + Email]
+    MCP --> Final[Booking Code + Secure URL]
+    Final --> EndSuccess((END: Booking Complete))
+
+    %% Styling
+    style Greet fill:#f96,stroke:#333,stroke-width:2px,color:#fff
+    style PIIGuard fill:#ffcccc,stroke:#f00,stroke-width:2px
+    style AdviceRefusal fill:#ffcccc,stroke:#f00,stroke-width:2px
+    style VagueLoop fill:#fff4dd,stroke:#d4a017,stroke-width:2px,color:#333
+    style TopicCheck fill:#bbf,stroke:#333,stroke-width:2px,color:#000
+    style RepeatTopic fill:#ffcccc,stroke:#f00,stroke-width:2px
+    style RepeatSlot fill:#ffcccc,stroke:#f00,stroke-width:2px
+    style Selection fill:#bbf,stroke:#333,stroke-width:2px,color:#000
+    style MapSlot fill:#d4edda,stroke:#28a745,stroke-width:2px,color:#155724
+    style MCP fill:#bbf,stroke:#333,stroke-width:2px,color:#000
+    style EndSuccess fill:#9f9,stroke:#333,stroke-width:2px,color:#000
+    style EndWL fill:#fff4dd,stroke:#999,color:#333
+    style NoBooking fill:#d4edda,stroke:#28a745,color:#155724
+    style EndExit fill:#d4edda,stroke:#28a745,color:#155724
+    style EndMod fill:#cce5ff,stroke:#004085,color:#004085
+    style UpdateMCP fill:#bbf,stroke:#333,stroke-width:2px,color:#000
+    style Start fill:#6c63ff,stroke:#333,stroke-width:2px,color:#fff
+    style EndFail fill:#f8d7da,stroke:#721c24,color:#721c24
+    style EndFail2 fill:#f8d7da,stroke:#721c24,color:#721c24
+    style EndAdvice fill:#f8d7da,stroke:#721c24,color:#721c24
+    style Timeout fill:#eee,stroke:#333,stroke-dasharray:5 5,color:#333
+    style Waitlist fill:#fff4dd,stroke:#d4a017,stroke-width:2px,color:#333
+    style NextDay fill:#e8f4fd,stroke:#0070c0,stroke-width:2px,color:#003d6b
+    style DayCheck fill:#bbf,stroke:#333,stroke-width:2px,color:#000
+    style TimePref fill:#f0f0ff,stroke:#6666cc,stroke-width:2px,color:#333
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: {
+      curve: 'basis',
+      padding: 20,
+      nodeSpacing: 50,
+      rankSpacing: 60,
+    },
+    themeVariables: {
+      fontSize: '14px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }
+  });
+</script>
+</body>
+</html>

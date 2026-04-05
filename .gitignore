@@ -1,7 +1,9 @@
 # Secrets — NEVER commit these
 .env
 config/service_account.json
+**/config/service_account.json
 *.json.key
+voiceagent-*.json
 
 # Python
 __pycache__/
@@ -17,8 +19,11 @@ build/
 
 # Data — generated at runtime
 data/chroma_db/
+**/data/chroma_db/
 data/tts_cache/
+**/data/tts_cache/
 data/logs/
+**/data/logs/
 data/raw_docs/
 
 # Streamlit

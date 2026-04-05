@@ -1,0 +1,35 @@
+KYC and Account Onboarding — Frequently Asked Questions
+
+What is KYC and why is it required?
+KYC stands for Know Your Customer. It is a mandatory regulatory process that financial institutions must follow to verify the identity of their clients. KYC is required by SEBI and RBI guidelines to prevent money laundering, fraud, and other financial crimes. Without completing KYC, you cannot invest in mutual funds, open a demat account, or access most financial services in India.
+
+What documents are required for KYC?
+For individual investors, the following documents are required:
+Identity Proof: PAN card (mandatory), Aadhaar card, passport, voter ID, or driving licence.
+Address Proof: Aadhaar card, utility bill (not older than 3 months), bank statement, or rental agreement.
+Photograph: A recent passport-size photograph.
+For non-individual entities such as companies or trusts, additional documents like the Certificate of Incorporation, Memorandum of Association, and board resolution may be required.
+
+What is the difference between KYC and eKYC?
+Traditional KYC involves submitting physical copies of documents at a branch or through a courier. eKYC (electronic KYC) is a paperless process that uses your Aadhaar number and biometric or OTP-based verification. eKYC is faster and can be completed online within minutes. Both are equally valid for most investment purposes.
+
+How long does the KYC process take?
+In-person KYC is typically completed within 3 to 5 business days after document submission. eKYC using Aadhaar OTP is usually completed instantly or within 24 hours. Video KYC, where a representative verifies your identity via a video call, is generally completed within 1 to 2 business days.
+
+Can I invest without completing KYC?
+No. SEBI regulations mandate that all investors complete their KYC before making any investments in mutual funds, equities, or bonds. However, you can browse fund options and learn about investments without KYC.
+
+What is the KYC registration process with a KRA?
+KYC Registration Agencies (KRAs) maintain a centralised KYC database. When you complete KYC with one SEBI-registered intermediary, your details are stored with a KRA such as CAMS KRA, CVL KRA, NDML, DotEx, or Karvy KRA. This means you do not need to repeat the full KYC process each time you approach a new intermediary — you only need to update or verify your existing record.
+
+What should I do if my KYC is rejected?
+If your KYC is rejected, you will receive a rejection letter specifying the reason. Common reasons include blurry document scans, signature mismatch, name discrepancy between PAN and Aadhaar, or address proof being more than 3 months old. You must re-submit with corrected documents. Call our support team or visit a branch for guidance.
+
+How do I check my KYC status?
+You can check your KYC status on the websites of major KRAs by entering your PAN number. The status will show as KYC Registered, KYC Verified, KYC On Hold, or KYC Rejected. If your status is On Hold or Rejected, contact the KRA or your intermediary for further steps.
+
+Is my KYC valid forever?
+KYC registration does not expire, but re-KYC may be required periodically based on regulatory changes or if your details such as address, contact number, or photograph need to be updated. Always ensure your details are current to avoid transaction restrictions.
+
+What happens during the onboarding consultation?
+During your onboarding consultation with our advisor, you will discuss which investment products align with your financial goals, understand the documentation requirements specific to your account type, get guidance on completing the KYC process if you have not done so already, and review the terms and conditions for the services you wish to avail.

@@ -1,0 +1,33 @@
+Withdrawals and Redemption Timelines — Frequently Asked Questions
+
+How do I redeem my mutual fund investments?
+You can redeem mutual fund units by placing a redemption request through the AMC website or app, through the investment platform or distributor, or by submitting a physical redemption form at the AMC branch. You can choose to redeem a specific number of units, a specific rupee amount, or all units. The request is typically processed within one to two business days.
+
+When will the money reach my bank account?
+The timeline depends on the fund type:
+Liquid and Overnight Funds: T+1 business day (next business day after request).
+Debt Funds (Short-term, Ultra Short-term): T+2 business days.
+Equity Funds (including ELSS): T+3 business days.
+International Funds: T+3 to T+7 business days, depending on underlying market settlement.
+Note: T is the day on which the redemption request is submitted before the fund cut-off time (usually 3 PM for most funds).
+
+What is the cut-off time for same-day NAV?
+For equity and hybrid funds, the cut-off time is 3 PM IST. Requests received before 3 PM are processed at the same day's NAV. Requests after 3 PM are processed at the next business day's NAV. For liquid funds, the cut-off is 1:30 PM to 2 PM, varying by fund.
+
+Is there any exit load on redemptions?
+Exit load is a small fee charged on redemptions made before a specified holding period. Most equity funds charge 1% exit load if redeemed within 1 year of investment. Many liquid and debt funds have zero exit load after a short holding period of 7 to 15 days. Always check the scheme information document (SID) for the exit load applicable to your specific fund.
+
+What is ELSS lock-in and when can I redeem?
+ELSS funds have a mandatory 3-year lock-in period from the date of each SIP instalment. You cannot redeem ELSS units before 3 years. Each instalment has its own lock-in clock. After 3 years, the units are freely redeemable with no exit load.
+
+Can I do a partial redemption?
+Yes. You can redeem part of your holdings while keeping the rest invested. You specify either a rupee amount or a number of units to redeem. The remaining units continue to be invested and earn returns.
+
+What bank account will the redemption proceeds go to?
+Redemption proceeds are always credited to the bank account registered in your investment folio. This is a security measure. If you have changed your bank account, you must update it with the fund house before placing a redemption request. Updating bank details may take 5 to 7 business days.
+
+What should I prepare for the withdrawal consultation?
+Before your consultation, have your investment folio number or account login, the approximate redemption amount or specific fund you want to redeem, your registered bank account details, and any tax implications you want to discuss (especially for equity funds held for over a year). Our advisor will guide you through the process and flag any exit loads or tax liabilities.
+
+Can I withdraw if my KYC is not updated?
+If your KYC has lapsed, is on hold, or needs re-verification, you may face restrictions on redemptions. It is important to keep your KYC details current, especially your address, contact number, and bank account details. If you face a KYC-related hold on your account, contact our support team immediately.

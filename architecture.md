@@ -274,6 +274,29 @@ Every call produces an immutable, append-only audit record:
 
 ## 5. Dialogue State Machine (FSM)
 
+### 5.0 Dialogue Flow (Linear Steps)
+
+States are linear with branches for errors, waitlist, and non-booking intents.
+
+1. **Greet** → play short value prop.
+2. **Disclaimer** → mandatory: informational, not investment advice; require explicit acknowledgment (e.g. "yes" / "I understand") before continuing.
+3. **Intent detect** → if not `book_new`, branch to reschedule / cancel / prepare / availability subgraphs (each with its own mini-flow).
+4. **Topic confirm** → must map to one of: KYC/Onboarding, SIP/Mandates, Statements/Tax Docs, Withdrawals & Timelines, Account Changes/Nominee.
+5. **Day/time preference** → natural language → normalized to date + time window in **IST** (store and display always with timezone).
+6. **Offer slots** → mock calendar returns **two** concrete options; read back with IST and full date/time on confirmation.
+7. **Confirm** → on user confirmation:
+   - Generate booking code (e.g. `NL-A742` pattern).
+   - MCP Calendar: create tentative event title `Advisor Q&A – {Topic} – {Code}`.
+   - MCP Notes: append `{date, topic, slot, code}` to document **Advisor Pre-Bookings**.
+   - MCP Email: draft advisor notification (human approval before send).
+8. **Close** → speak booking code; give **secure URL** for contact details (no PII collected on call).
+
+**No-match path:** If mock calendar has no slots → **waitlist hold** (domain concept + MCP notes/calendar as per product rules) + draft email; still issue booking code if the brief requires a reference for the waitlist case (align with PM — code may be waitlist-specific).
+
+**Investment advice:** If detected (keywords or intent), **refuse** and offer **educational links** only; do not enter booking unless user pivots to scheduling.
+
+---
+
 ### 5.1 State Definitions
 
 The FSM controls exactly which states the agent can be in and what transitions are valid.

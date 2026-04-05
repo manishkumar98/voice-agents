@@ -1,0 +1,33 @@
+Statements and Tax Documents — Frequently Asked Questions
+
+What types of statements can I request?
+You can request the following types of statements:
+Account Statement: Shows all transactions (purchases, redemptions, dividends) in your investment account over a selected period.
+Portfolio Valuation Statement: Shows the current market value of all your holdings.
+Capital Gains Statement: Shows the gains or losses from redemptions, segregated by short-term and long-term, for tax computation.
+Dividend Statement: Shows all dividend payouts received during the year.
+Consolidated Account Statement (CAS): A single statement covering investments across all mutual fund houses, sent monthly by CAMS or KFintech.
+
+What is a Capital Gains Statement and when do I need it?
+A Capital Gains Statement is a tax document that lists all units redeemed during the financial year and the resulting short-term or long-term capital gains or losses. You need this when filing your Income Tax Return (ITR). Gains from equity funds held less than 12 months are short-term (taxed at 15%), while gains from equity funds held over 12 months are long-term (taxed at 10% above Rs 1 lakh). Debt fund gains are taxed as per your income tax slab.
+
+What is Form 26AS and why is it important?
+Form 26AS is a consolidated tax credit statement issued by the Income Tax Department. It shows TDS (Tax Deducted at Source) deducted by fund houses on dividend payouts, advance tax paid, and self-assessment tax. You should always match your Form 26AS with the dividend statements from your funds before filing your ITR to avoid discrepancies.
+
+How do I get my tax documents for ELSS investments?
+ELSS (Equity Linked Savings Scheme) investments qualify for a deduction under Section 80C of the Income Tax Act, up to Rs 1.5 lakh per year. To claim this, you need a purchase statement or investment receipt showing the amount invested in ELSS during the financial year. This is available from your AMC or investment platform account statement.
+
+When are statements available for the financial year?
+For the financial year April to March, most AMCs release the Capital Gains Statement and consolidated statements by mid-April for the previous year's transactions. Some platforms make them available immediately after March 31. Always download your statements before the ITR filing deadline.
+
+How do I request a statement?
+You can request statements online through the AMC website or app, through the investment platform or distributor portal, by emailing or calling the AMC's customer service, or by visiting a branch. During your consultation, our advisor can guide you to the right portal and help you download the relevant documents.
+
+What is TDS on mutual fund dividends?
+Since the Finance Act 2020, dividends from mutual funds are taxed in the hands of the investor at their applicable income tax slab rate. If your total dividend income from a fund house exceeds Rs 5,000 in a financial year, the fund house deducts TDS at 10%. This TDS is reflected in your Form 26AS and can be claimed as a credit when filing your ITR.
+
+What documents should I bring to the tax statement consultation?
+Please have your PAN number, your investment account login credentials, the financial year for which you need the statement, and a list of all fund houses or platforms where you have investments. Our advisor will help you locate all relevant documents and explain how to use them for tax filing.
+
+How do I calculate my net tax liability from mutual fund gains?
+To calculate tax: list all redemptions made in the year, classify gains as short-term or long-term based on holding period, apply the relevant tax rate, subtract the Rs 1 lakh long-term capital gains exemption for equity funds, and add the net taxable gain to your total income for ITR calculation. Our advisor can walk you through this calculation with your actual statements.
