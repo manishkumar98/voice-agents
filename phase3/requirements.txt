@@ -1,0 +1,30 @@
+# Phase 3 — Speech Integration
+# Install with: pip install -r phase3/requirements.txt
+# Python 3.11+ required.
+#
+# These are the MINIMUM packages to run all Phase 3 unit tests (no real API calls).
+# Integration tests (marked @pytest.mark.integration) additionally need
+# Google Cloud and Deepgram credentials — see .env.
+
+# ── Core ────────────────────────────────────────────────────────────────────
+pytz>=2024.1                    # IST timezone used by VoiceLogger + AudioPipeline
+python-dotenv>=1.0.0            # Loads .env in conftest.py
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+pytest>=8.0.0                   # Test runner
+
+# ── Optional: real STT (integration tests only) ───────────────────────────
+# google-cloud-speech>=2.26.0
+# deepgram-sdk>=3.5.0
+
+# ── Optional: real TTS (integration tests only) ───────────────────────────
+# google-cloud-texttospeech>=2.16.0
+# pyttsx3>=2.90
+
+# ── Optional: Silero VAD (marked @pytest.mark.slow) ──────────────────────
+# torch>=2.3.0
+# torchaudio>=2.3.0
+
+# ── Phase 2 deps (imported lazily by audio_pipeline; unit tests use mocks) ─
+# groq>=0.9.0
+# anthropic>=0.34.0
