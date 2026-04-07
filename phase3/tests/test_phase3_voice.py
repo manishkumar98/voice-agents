@@ -666,14 +666,17 @@ class TestAudioPipelineAudioMode:
         """TC-3.54 — Low-confidence STT result triggers re-prompt response."""
         monkeypatch.setenv("TTS_CACHE_DIR", tmp_tts_cache)
         monkeypatch.setenv("STT_CONFIDENCE_THRESHOLD", "0.7")
+        monkeypatch.setenv("STT_SILENCE_TIMEOUT_SECONDS", "0.3")
         from src.voice.stt_engine import STTEngine
         from src.voice.tts_engine import TTSEngine
+        from src.voice.vad import VADEngine
         from src.voice.audio_pipeline import AudioPipeline
 
         pipeline = AudioPipeline(
             text_mode=False,
             stt_engine=STTEngine(primary=low_confidence_stt_callable),
             tts_engine=TTSEngine(primary=mock_tts_callable),
+            vad_factory=lambda: VADEngine(silence_threshold_ms=300),
             voice_logger=voice_logger,
         )
         call_id = pipeline.start_session()
@@ -695,8 +698,10 @@ class TestAudioPipelineAudioMode:
     ):
         """TC-3.55 — PII in STT transcript is flagged and scrubbed."""
         monkeypatch.setenv("TTS_CACHE_DIR", tmp_tts_cache)
+        monkeypatch.setenv("STT_SILENCE_TIMEOUT_SECONDS", "0.3")
         from src.voice.stt_engine import STTEngine, TranscriptResult
         from src.voice.tts_engine import TTSEngine
+        from src.voice.vad import VADEngine
         from src.voice.audio_pipeline import AudioPipeline
 
         def pii_stt(audio: bytes) -> TranscriptResult:
@@ -709,6 +714,7 @@ class TestAudioPipelineAudioMode:
             text_mode=False,
             stt_engine=STTEngine(primary=pii_stt),
             tts_engine=TTSEngine(primary=mock_tts_callable),
+            vad_factory=lambda: VADEngine(silence_threshold_ms=300),
             voice_logger=voice_logger,
         )
         call_id = pipeline.start_session()

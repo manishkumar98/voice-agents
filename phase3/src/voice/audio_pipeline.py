@@ -221,20 +221,19 @@ class AudioPipeline:
         if self._guard_cls:
             self._guard_instances[call_id]  = self._guard_cls()
 
-        self._vlog.log_session_start(call_id)
+        # Prime the FSM so that the first user turn calls process_turn (not start)
+        fsm = self._fsm_instances.get(call_id)
+        if fsm:
+            try:
+                ctx, _ = fsm.start(call_id=call_id)
+                session.dialogue_ctx = ctx
+            except Exception as exc:
+                logger.warning("FSM start error: %s", exc)
+
+        greeting = self._get_greeting()
+        self._vlog.log_session_start(call_id, extra={"greeting": greeting})
         logger.info("Pipeline session started: %s", call_id)
 
-        # Emit greeting turn
-        greeting = self._get_greeting()
-        session.turn_index += 1
-        self._vlog.log_turn(
-            call_id=call_id,
-            turn_index=0,
-            user_transcript_raw="",
-            detected_intent="session_start",
-            agent_speech=greeting,
-            current_state="GREETED",
-        )
         return call_id
 
     def end_session(self, call_id: str) -> None:

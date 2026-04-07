@@ -203,12 +203,16 @@ def pipeline_audio_mode(mock_stt_callable, mock_tts_callable, voice_logger,
                         tmp_tts_cache, monkeypatch):
     """AudioPipeline in audio mode with mocked STT/TTS."""
     monkeypatch.setenv("TTS_CACHE_DIR", tmp_tts_cache)
+    # Override .env value so 300 ms silence (10 × 30 ms chunks) triggers end-of-turn
+    monkeypatch.setenv("STT_SILENCE_TIMEOUT_SECONDS", "0.3")
     from src.voice.stt_engine import STTEngine
     from src.voice.tts_engine import TTSEngine
+    from src.voice.vad import VADEngine
     from src.voice.audio_pipeline import AudioPipeline
     return AudioPipeline(
         text_mode=False,
         stt_engine=STTEngine(primary=mock_stt_callable),
         tts_engine=TTSEngine(primary=mock_tts_callable),
+        vad_factory=lambda: VADEngine(silence_threshold_ms=300),
         voice_logger=voice_logger,
     )
