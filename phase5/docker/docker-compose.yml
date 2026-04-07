@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  # ── Advisor Scheduling UI ──────────────────────────────────────────────────
+  app:
+    build:
+      context: ../../../..          # repo root
+      dockerfile: voice-agents/phase5/docker/Dockerfile
+    image: advisor-scheduling-agent:latest
+    container_name: advisor_app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - ../../../../voice-agents/.env   # loads all API keys
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SESSION_BACKEND=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - logs_volume:/app/voice-agents/data/logs
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - advisor_net
+
+  # ── Redis — session store ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: advisor_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - advisor_net
+
+volumes:
+  redis_data:
+    driver: local
+  logs_volume:
+    driver: local
+
+networks:
+  advisor_net:
+    driver: bridge
