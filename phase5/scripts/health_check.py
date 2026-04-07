@@ -30,9 +30,10 @@ except ImportError:
     _HAS_REDIS = False
 
 # ── Path setup ─────────────────────────────────────────────────────────────────
-_root = Path(__file__).resolve().parents[3]
+_root = Path(__file__).resolve().parents[2]   # voice-agents/
 sys.path.insert(0, str(_root / "phase1"))
 sys.path.insert(0, str(_root / "phase2"))
+sys.path.insert(0, str(_root / "phase3"))
 
 
 # ── Individual checks ──────────────────────────────────────────────────────────
