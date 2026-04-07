@@ -3,8 +3,10 @@ Phase 5 — Production Streamlit UI
 Advisor Scheduling Voice & Text Agent
 
 Features:
-  • Voice mode: mic recording → Groq Whisper STT → FSM → gTTS playback
+  • Voice mode: mic recording → Groq Whisper STT → FSM → natural TTS playback
   • Text mode: typed input → FSM → text response
+  • Language toggle: Indian English (en-IN) ↔ Hindi (hi-IN)
+  • TTS provider chain: Sarvam AI Bulbul → Google Cloud Neural2 → pyttsx3
   • SEBI disclaimer on entry
   • Turn-by-turn conversation transcript
   • Booking confirmation panel with MCP results
@@ -43,7 +45,6 @@ os.environ.setdefault(
 )
 
 # ── Imports ───────────────────────────────────────────────────────────────────
-import io
 import tempfile
 import streamlit as st
 
@@ -55,48 +56,75 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Lazy loaders (avoid crashing if optional packages missing) ─────────────────
+# ── Audio helpers ──────────────────────────────────────────────────────────────
 
-def _load_groq():
+def _stt(audio_bytes: bytes, language: str = "en-IN") -> str:
+    """
+    Transcribe audio via Groq Whisper (whisper-large-v3).
+    language: "en-IN" (Indian English) or "hi-IN" (Hindi).
+    Returns transcript text or empty string on failure.
+    """
     try:
-        from groq import Groq
-        return Groq()
-    except ImportError:
-        return None
-
-
-def _stt(audio_bytes: bytes) -> str:
-    """Transcribe audio via Groq Whisper. Returns text or empty string."""
-    client = _load_groq()
-    if not client:
-        return ""
-    try:
+        from groq import Groq  # type: ignore[import]
+        api_key = os.environ.get("GROQ_API_KEY", "").strip()
+        if not api_key:
+            st.warning("GROQ_API_KEY not set — STT unavailable.")
+            return ""
+        client = Groq(api_key=api_key)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             f.write(audio_bytes)
             tmp = f.name
-        with open(tmp, "rb") as af:
-            result = client.audio.transcriptions.create(
-                model="whisper-large-v3",
-                file=("audio.wav", af, "audio/wav"),
-                response_format="text",
-            )
-        os.unlink(tmp)
+        _lang_map = {"en-IN": "en", "hi-IN": "hi"}
+        whisper_lang = _lang_map.get(language, "en")
+        try:
+            with open(tmp, "rb") as af:
+                result = client.audio.transcriptions.create(
+                    model="whisper-large-v3",
+                    file=("audio.wav", af, "audio/wav"),
+                    response_format="text",
+                    language=whisper_lang,
+                )
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
         return str(result).strip()
+    except ImportError:
+        st.warning("groq package not installed — install with: pip install groq")
+        return ""
     except Exception as exc:
         st.warning(f"STT error: {exc}")
         return ""
 
 
-def _tts(text: str) -> bytes | None:
-    """Convert text to speech via gTTS. Returns WAV bytes or None."""
+def _tts(text: str, language: str = "en-IN") -> bytes | None:
+    """
+    Convert text to speech using the TTS engine (Sarvam → Google Neural2 → pyttsx3).
+    language: "en-IN" (Indian English) or "hi-IN" (Hindi).
+    Returns audio bytes or None on total failure.
+    """
+    # Set language env var so TTS engine providers pick it up
+    os.environ["TTS_LANGUAGE"] = language
     try:
-        from gtts import gTTS
-        buf = io.BytesIO()
-        gTTS(text=text, lang="en", slow=False).write_to_fp(buf)
+        from src.voice.tts_engine import TTSEngine
+        engine = TTSEngine()
+        result = engine.synthesise(text, language=language)
+        if not result.is_empty:
+            return result.audio_bytes
+    except Exception:
+        pass
+
+    # Last-resort gTTS fallback (robotic but always available)
+    try:
+        import io as _io
+        from gtts import gTTS  # type: ignore[import]
+        _lang = "hi" if language == "hi-IN" else "en"
+        _tld  = "co.in" if language == "en-IN" else "com"
+        buf = _io.BytesIO()
+        gTTS(text=text, lang=_lang, tld=_tld, slow=False).write_to_fp(buf)
         buf.seek(0)
         return buf.read()
-    except ImportError:
-        return None
     except Exception as exc:
         st.warning(f"TTS error: {exc}")
         return None
@@ -113,6 +141,7 @@ def _init_state():
         "p5_done":     False,
         "p5_mcp":      None,     # MCPResults if booking complete
         "p5_mode":     "text",   # "voice" | "text"
+        "p5_lang":     "en-IN",  # "en-IN" | "hi-IN"
         "p5_disclaimer_shown": False,
     }
     for k, v in defaults.items():
@@ -126,7 +155,7 @@ _init_state()
 # ── UI Layout ─────────────────────────────────────────────────────────────────
 
 st.title("📅 Advisor Scheduling Agent")
-st.caption("Phase 5 — Production UI | Powered by GPT-4o-mini · Groq Whisper · gTTS")
+st.caption("Phase 5 — Production UI | Sarvam AI Bulbul / Google Neural2 · Groq Whisper · Indian English & Hindi")
 
 # ── SEBI Disclaimer ───────────────────────────────────────────────────────────
 
@@ -145,20 +174,31 @@ if not st.session_state.p5_disclaimer_shown:
             st.rerun()
     st.stop()
 
-# ── Mode selector ──────────────────────────────────────────────────────────────
+# ── Controls row: mode + language ─────────────────────────────────────────────
 
-left, right = st.columns([3, 1])
-with right:
-    mode = st.radio("Input mode", ["text", "voice"], index=0,
+left, mid, right = st.columns([3, 1, 1])
+with mid:
+    mode = st.radio("Mode", ["text", "voice"], index=0,
                     horizontal=True, key="p5_mode_radio",
-                    label_visibility="collapsed")
+                    label_visibility="visible")
     st.session_state.p5_mode = mode
+with right:
+    lang_label = st.radio("Language", ["🇮🇳 English", "🇮🇳 हिंदी"], index=0,
+                           horizontal=True, key="p5_lang_radio",
+                           label_visibility="visible")
+    st.session_state.p5_lang = "hi-IN" if "हिंदी" in lang_label else "en-IN"
+
+# propagate language to env so TTS/STT engines pick it up
+os.environ["TTS_LANGUAGE"] = st.session_state.p5_lang
+os.environ["STT_LANGUAGE"] = st.session_state.p5_lang
 
 # ── Start button ──────────────────────────────────────────────────────────────
 
 if not st.session_state.p5_started:
     with left:
+        _lang_display = "Hindi (हिंदी)" if st.session_state.p5_lang == "hi-IN" else "Indian English"
         st.markdown("### Ready to start?")
+        st.markdown(f"Language: **{_lang_display}** · Mode: **{mode}**")
         st.markdown("Click **Start Session** and the agent will greet you.")
         if st.button("▶️ Start Session", type="primary"):
             from src.dialogue.fsm import DialogueFSM
@@ -230,10 +270,14 @@ if ctx and ctx.current_state.is_terminal():
 if st.session_state.p5_history:
     last = st.session_state.p5_history[-1]
     if last["role"] == "agent" and st.session_state.p5_mode == "voice":
-        audio_bytes = _tts(last["text"])
+        lang = st.session_state.get("p5_lang", "en-IN")
+        with st.spinner("Generating voice..."):
+            audio_bytes = _tts(last["text"], language=lang)
         if audio_bytes:
-            st.audio(audio_bytes, format="audio/mp3", autoplay=False)
-            st.success("🎙️ **YOUR TURN** — Record your response below")
+            fmt = "audio/wav" if audio_bytes[:4] == b"RIFF" else "audio/mp3"
+            st.audio(audio_bytes, format=fmt, autoplay=False)
+            _turn_label = "बोलिए 🎙️" if lang == "hi-IN" else "🎙️ YOUR TURN"
+            st.success(f"**{_turn_label}** — Record your response below")
 
 # ── Input area ─────────────────────────────────────────────────────────────────
 
@@ -274,11 +318,14 @@ def _process_user_input(user_text: str):
     st.session_state.p5_history.append({"role": "agent", "text": speech})
 
 
+_cur_lang = st.session_state.get("p5_lang", "en-IN")
+
 if st.session_state.p5_mode == "voice":
-    audio_input = st.audio_input("🎤 Record your message", key="p5_audio_input")
+    _mic_label = "🎤 बोलिए (Hindi में)" if _cur_lang == "hi-IN" else "🎤 Record your message"
+    audio_input = st.audio_input(_mic_label, key="p5_audio_input")
     if audio_input is not None:
-        with st.spinner("Transcribing..."):
-            transcript = _stt(audio_input.read())
+        with st.spinner("Transcribing..." if _cur_lang == "en-IN" else "सुन रहे हैं..."):
+            transcript = _stt(audio_input.read(), language=_cur_lang)
         if transcript:
             st.caption(f"You said: *{transcript}*")
             _process_user_input(transcript)

@@ -1,20 +1,28 @@
 """
 STT Engine — Speech-to-Text abstraction.
 
-Primary:  Google Cloud Speech-to-Text v2 (streaming, en-IN)
-Fallback: Deepgram Nova-2 (lower latency, good Hindi-English code-switch)
-Offline:  Returns empty TranscriptResult with confidence=0.0
+Provider priority (first available wins):
+  1. Groq Whisper (whisper-large-v3) — fast, accurate, supports Hindi + Indian English
+     Set GROQ_API_KEY. Language auto-detected or overridden by STT_LANGUAGE.
+  2. Google Cloud Speech-to-Text v2 — Indian English (en-IN) / Hindi (hi-IN)
+     Set GOOGLE_SERVICE_ACCOUNT_PATH or GOOGLE_SERVICE_ACCOUNT_JSON
+  3. Deepgram Nova-2 — good Hindi-English code-switching fallback
+     Set DEEPGRAM_API_KEY
+  4. Offline stub — returns empty transcript
+
+Language env vars:
+  STT_LANGUAGE = "en-IN" | "hi-IN" | "" (auto-detect, default)
+  When "hi-IN", Groq Whisper uses language="hi" for best accuracy.
 
 Designed to be fully injectable for testing — pass a custom
 ``stt_callable`` to bypass real API calls.
 """
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Iterator
 
 logger = logging.getLogger(__name__)
@@ -50,7 +58,7 @@ class TranscriptResult:
             errors.append("text must be str")
         if not 0.0 <= self.confidence <= 1.0:
             errors.append(f"confidence {self.confidence!r} out of [0, 1]")
-        if self.provider not in {"google", "deepgram", "offline", "mock", "unknown"}:
+        if self.provider not in {"groq", "google", "deepgram", "offline", "mock", "unknown"}:
             errors.append(f"unknown provider {self.provider!r}")
         return errors
 
@@ -66,6 +74,72 @@ STTCallable = Callable[[bytes], TranscriptResult]
 # ---------------------------------------------------------------------------
 # Provider implementations
 # ---------------------------------------------------------------------------
+
+def _groq_transcribe(audio_bytes: bytes) -> TranscriptResult:
+    """
+    Transcribe via Groq Whisper (whisper-large-v3).
+    Requires: GROQ_API_KEY
+
+    Supports Indian English and Hindi natively.
+    STT_LANGUAGE="hi-IN" forces Hindi decoding for best accuracy.
+    Leave blank for automatic language detection.
+    """
+    t0 = time.monotonic()
+    try:
+        from groq import Groq  # type: ignore[import]
+        import tempfile
+
+        api_key = os.environ.get("GROQ_API_KEY", "").strip()
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY not set")
+
+        # Map STT_LANGUAGE to Whisper language code
+        _lang_map = {"en-IN": "en", "hi-IN": "hi", "en": "en", "hi": "hi"}
+        stt_lang = os.environ.get("STT_LANGUAGE", "").strip()
+        whisper_lang = _lang_map.get(stt_lang) or None  # None = auto-detect
+
+        client = Groq(api_key=api_key)
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(audio_bytes)
+            tmp_path = f.name
+
+        try:
+            with open(tmp_path, "rb") as af:
+                kwargs: dict = dict(
+                    model="whisper-large-v3",
+                    file=("audio.wav", af, "audio/wav"),
+                    response_format="verbose_json",
+                )
+                if whisper_lang:
+                    kwargs["language"] = whisper_lang
+                result = client.audio.transcriptions.create(**kwargs)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+        text = getattr(result, "text", "") or ""
+        # Groq verbose_json includes avg_logprob as a proxy for confidence
+        avg_logprob = getattr(result, "avg_logprob", None)
+        confidence = min(1.0, max(0.0, float(avg_logprob) + 1.0)) if avg_logprob is not None else 0.9
+
+        return TranscriptResult(
+            text=text.strip(),
+            confidence=confidence,
+            is_final=True,
+            provider="groq",
+            duration_ms=(time.monotonic() - t0) * 1000,
+        )
+
+    except ImportError:
+        logger.warning("groq package not installed; skipping Groq STT")
+        raise
+    except Exception as exc:
+        logger.error("Groq STT failed: %s", exc)
+        raise
+
 
 def _google_transcribe(audio_bytes: bytes) -> TranscriptResult:
     """
@@ -205,16 +279,28 @@ class STTEngine:
         primary: STTCallable | None = None,
         fallback: STTCallable | None = None,
     ) -> None:
-        self._primary: STTCallable = primary or _google_transcribe
-        self._fallback: STTCallable = fallback or _deepgram_transcribe
         self._timeout_s = float(os.environ.get("STT_SILENCE_TIMEOUT_SECONDS", "3"))
+        # Injectable primary for tests; otherwise build Groq → Google → Deepgram chain
+        if primary is not None:
+            self._providers: list[tuple[STTCallable, str]] = [
+                (primary, "mock"),
+                (fallback or _offline_transcribe, "fallback"),
+            ]
+        else:
+            self._providers = [
+                (_groq_transcribe, "groq"),
+                (_google_transcribe, "google"),
+                (_deepgram_transcribe, "deepgram"),
+                (_offline_transcribe, "offline"),
+            ]
 
     # ------------------------------------------------------------------
     def transcribe(self, audio_bytes: bytes) -> TranscriptResult:
         """
         Transcribe audio bytes to text.
 
-        Tries primary provider, then fallback, then offline stub.
+        Tries Groq Whisper → Google STT → Deepgram → offline stub.
+        Set STT_LANGUAGE="hi-IN" for Hindi, "en-IN" for Indian English (default auto).
         Never raises — always returns a TranscriptResult.
         """
         if not audio_bytes:
@@ -222,11 +308,7 @@ class STTEngine:
                 text="", confidence=0.0, is_final=True, provider="offline"
             )
 
-        for provider_fn, label in [
-            (self._primary, "primary"),
-            (self._fallback, "fallback"),
-            (_offline_transcribe, "offline"),
-        ]:
+        for provider_fn, label in self._providers:
             try:
                 result = provider_fn(audio_bytes)
                 if label != "offline":

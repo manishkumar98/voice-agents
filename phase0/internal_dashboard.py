@@ -1040,21 +1040,49 @@ with phase4_tab:
     st.divider()
     st.markdown("### 🎙️ Live Voice Conversation — End-to-End Booking")
 
+    # ── language selector ─────────────────────────────────────────────────────
+    _lang_opt = st.radio(
+        "🌐 Voice Language",
+        ["🇮🇳 Indian English", "🇮🇳 हिंदी (Hindi)"],
+        horizontal=True,
+        key="p4_voice_lang",
+        help="Affects both TTS output and STT transcription.",
+    )
+    _p4_lang = "hi-IN" if "हिंदी" in _lang_opt else "en-IN"
+
     # ── helpers ───────────────────────────────────────────────────────────────
     def _tts_bytes(text: str) -> bytes:
-        """Convert text → MP3 bytes via gTTS."""
+        """
+        Convert text → audio bytes using natural Indian TTS.
+        Provider chain: Sarvam AI Bulbul → Google Cloud Neural2 → gTTS fallback.
+        """
+        # Try the proper TTS engine first (Sarvam / Google Neural2)
+        try:
+            _phase3_path = os.path.join(VOICE_AGENTS_ROOT, "phase3")
+            if _phase3_path not in sys.path:
+                sys.path.insert(0, _phase3_path)
+            from src.voice.tts_engine import TTSEngine
+            engine = TTSEngine()
+            result = engine.synthesise(text, language=_p4_lang)
+            if not result.is_empty:
+                return result.audio_bytes
+        except Exception:
+            pass
+        # gTTS last resort
         try:
             import io
             from gtts import gTTS
+            _lang = "hi" if _p4_lang == "hi-IN" else "en"
+            _tld  = "co.in" if _p4_lang == "en-IN" else "com"
             buf = io.BytesIO()
-            gTTS(text=text, lang="en", tld="co.in", slow=False).write_to_fp(buf)
+            gTTS(text=text, lang=_lang, tld=_tld, slow=False).write_to_fp(buf)
             buf.seek(0)
             return buf.read()
         except Exception:
             return b""
 
     def _stt(audio_bytes: bytes) -> str:
-        """Transcribe audio bytes via Groq Whisper."""
+        """Transcribe audio bytes via Groq Whisper (Indian English or Hindi)."""
         import io
         groq_key = os.environ.get("GROQ_API_KEY", "")
         if not groq_key:
@@ -1062,10 +1090,11 @@ with phase4_tab:
         try:
             from groq import Groq as _Groq
             client = _Groq(api_key=groq_key)
+            _whisper_lang = "hi" if _p4_lang == "hi-IN" else "en"
             resp = client.audio.transcriptions.create(
                 model="whisper-large-v3",
                 file=("audio.wav", io.BytesIO(audio_bytes), "audio/wav"),
-                language="en",
+                language=_whisper_lang,
             )
             return resp.text.strip()
         except Exception as _e:
@@ -1144,7 +1173,8 @@ with phase4_tab:
         if last_agent:
             audio_bytes = _tts_bytes(last_agent)
             if audio_bytes:
-                st.audio(audio_bytes, format="audio/mp3", autoplay=False)
+                _fmt = "audio/wav" if audio_bytes[:4] == b"RIFF" else "audio/mp3"
+                st.audio(audio_bytes, format=_fmt, autoplay=False)
 
         ctx = st.session_state["p4_ctx"]
 
