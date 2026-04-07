@@ -1,0 +1,47 @@
+# =============================================================================
+# Production requirements — Streamlit UI only (Railway / Docker deployment)
+# Excludes: torch, pyaudio, silero-vad, playwright, pytest, celery, ipython
+# =============================================================================
+
+# LLM
+groq>=0.9.0
+anthropic>=0.34.0
+
+# STT
+google-cloud-speech>=2.26.0
+deepgram-sdk>=3.5.0
+
+# TTS
+google-cloud-texttospeech>=2.16.0
+requests>=2.31.0
+gTTS>=2.5.0
+
+# Google Workspace (MCP)
+google-api-python-client>=2.136.0
+google-auth>=2.31.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+gspread>=6.1.2
+
+# RAG
+chromadb>=0.5.3
+sentence-transformers>=3.0.1
+langchain-text-splitters>=0.2.2
+beautifulsoup4>=4.12.3
+lxml>=5.2.2
+
+# UI
+streamlit>=1.36.0
+
+# Session / Security
+redis>=5.0.7
+itsdangerous>=2.2.0
+cryptography>=42.0.8
+
+# Utilities
+python-dotenv>=1.0.1
+pytz>=2024.1
+pydantic>=2.0.0
+pydantic-settings>=2.3.4
+structlog>=24.2.0
+httpx>=0.27.0
