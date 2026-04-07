@@ -98,7 +98,7 @@ def _sarvam_speaker(language: str) -> str:
     Configurable via TTS_SARVAM_SPEAKER_EN / TTS_SARVAM_SPEAKER_HI.
     """
     if language == "hi-IN":
-        return os.environ.get("TTS_SARVAM_SPEAKER_HI", "meera")   # natural Hindi female
+        return os.environ.get("TTS_SARVAM_SPEAKER_HI", "manisha")  # natural Hindi female
     return os.environ.get("TTS_SARVAM_SPEAKER_EN", "anushka")       # natural Indian-English female
 
 
@@ -188,7 +188,7 @@ def _sarvam_synthesise(text: str, language: str = "en-IN") -> bytes:
         "loudness": 1.5,
         "speech_sample_rate": 22050,
         "enable_preprocessing": True,
-        "model": "bulbul:v1",
+        "model": "bulbul:v2",
     }
     headers = {
         "api-subscription-key": api_key,
