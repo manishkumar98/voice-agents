@@ -2,11 +2,11 @@
 # Docs: https://docs.railway.com/reference/config-as-code
 
 [build]
-dockerfilePath = "voice-agents/phase5/docker/Dockerfile"
+dockerfilePath = "phase5/docker/Dockerfile"
 
 [deploy]
 # Railway injects $PORT dynamically — Streamlit must bind to it
-startCommand = "streamlit run voice-agents/phase5/ui/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"
+startCommand = "streamlit run phase5/ui/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"
 healthcheckPath = "/_stcore/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

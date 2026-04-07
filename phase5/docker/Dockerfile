@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for layer caching
-COPY voice-agents/requirements.txt .
+COPY requirements.txt .
 RUN python -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
@@ -29,7 +29,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application source
-COPY voice-agents/ ./voice-agents/
+COPY . .
 
 # Environment defaults (override at runtime via .env or Docker secrets)
 ENV PYTHONUNBUFFERED=1 \
@@ -51,4 +51,4 @@ USER appuser
 
 # Launch production UI
 # PORT is injected by Railway; falls back to 8501 for local docker
-CMD ["sh", "-c", "streamlit run voice-agents/phase5/ui/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
+CMD ["sh", "-c", "streamlit run phase5/ui/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
