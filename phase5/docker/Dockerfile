@@ -38,7 +38,7 @@ ENV PYTHONUNBUFFERED=1 \
     STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-# Streamlit uses 8501 by default
+# Streamlit uses 8501 by default (Railway overrides via $PORT)
 EXPOSE 8501
 
 # Health check — polls Streamlit's /_stcore/health endpoint
@@ -50,5 +50,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 USER appuser
 
 # Launch production UI
-CMD ["streamlit", "run", "voice-agents/phase5/ui/app.py", \
-     "--server.port=8501", "--server.address=0.0.0.0"]
+# PORT is injected by Railway; falls back to 8501 for local docker
+CMD ["sh", "-c", "streamlit run voice-agents/phase5/ui/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
