@@ -6,7 +6,7 @@ dockerfilePath = "phase5/docker/Dockerfile"
 
 [deploy]
 # Railway injects $PORT dynamically — Streamlit must bind to it
-startCommand = "streamlit run phase5/ui/app.py --server.port=$PORT"
+startCommand = "sh -c 'streamlit run phase5/ui/app.py --server.port=$PORT'"
 healthcheckPath = "/_stcore/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
