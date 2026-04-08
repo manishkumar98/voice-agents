@@ -327,9 +327,9 @@ if st.session_state.p5_mode == "voice":
         # Dedup guard: hash audio bytes so same recording isn't re-processed on rerun
         import hashlib as _hashlib
         _audio_bytes = audio_input.read()
-        _audio_key = f"{_hashlib.md5(_audio_bytes).hexdigest()}|{len(st.session_state.p5_history)}"
-        if st.session_state.get("_last_run_key") != _audio_key:
-            st.session_state["_last_run_key"] = _audio_key
+        _audio_hash = _hashlib.md5(_audio_bytes).hexdigest()
+        if st.session_state.get("_last_audio_hash") != _audio_hash:
+            st.session_state["_last_audio_hash"] = _audio_hash
             with st.spinner("Transcribing..." if _cur_lang == "en-IN" else "सुन रहे हैं..."):
                 transcript = _stt(_audio_bytes, language=_cur_lang)
             if transcript:
@@ -337,19 +337,14 @@ if st.session_state.p5_mode == "voice":
                 _process_user_input(transcript)
             else:
                 st.warning("Could not transcribe audio. Please try again or switch to text mode.")
-        st.rerun()
+            st.rerun()
 
 else:
     # Text mode
     _placeholder = "यहाँ टाइप करें..." if _cur_lang == "hi-IN" else "Type your message..."
     user_input = st.chat_input(_placeholder)
     if user_input and user_input.strip():
-        # Dedup guard: (input, history_length) ensures same input is never
-        # processed twice on back-to-back reruns triggered by st.rerun()
-        _run_key = f"{user_input.strip()}|{len(st.session_state.p5_history)}"
-        if st.session_state.get("_last_run_key") != _run_key:
-            st.session_state["_last_run_key"] = _run_key
-            _process_user_input(user_input.strip())
+        _process_user_input(user_input.strip())
         st.rerun()
 
 # ── Sidebar: debug info ────────────────────────────────────────────────────────
