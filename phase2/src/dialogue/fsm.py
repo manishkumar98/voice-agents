@@ -79,6 +79,33 @@ _STRINGS = {
             "We'll contact you as soon as a slot opens."
         ),
         "booking_code_prompt": "Please share your booking code so I can find your appointment.",
+        "topic_circuit_breaker": (
+            "It seems we're having trouble finding the right topic. "
+            "A human advisor will reach out to you directly. "
+            "Thank you for calling — have a great day!"
+        ),
+        "booking_confirmed": (
+            "Your booking is confirmed. "
+            "{topic_label} on {slot_readable}. "
+            "Your booking code is {code_spoken}. "
+            "Please note it down. "
+            "You'll receive a secure link to submit your contact details. "
+            "Thank you for calling!"
+        ),
+        "waitlist_confirmed": (
+            "{queue_msg}Done. I've added you to the waitlist specifically for "
+            "{topic_label}{day_part}{time_part}. "
+            "Your waitlist code is {code_spoken}. "
+            "An advisor will reach out as soon as that slot opens. Thank you!"
+        ),
+        "waitlist_decline": "No problem. Feel free to call back when you're ready. Goodbye!",
+        "waitlist_redirect": (
+            "Unfortunately no slots are open for that time. "
+            "Would you like to try a different day or time? "
+            "Or I can add you to the waitlist and we'll reach out when something opens."
+        ),
+        "waitlist_reprompt": "Sorry, I didn't catch that. Would you like to be added to the waitlist? Just say yes or no.",
+        "code_not_found": "I didn't catch your booking code. Could you repeat it?",
     },
     "hi-IN": {
         "greeting": (
@@ -136,6 +163,32 @@ _STRINGS = {
             "स्लॉट खुलते ही हम आपसे संपर्क करेंगे।"
         ),
         "booking_code_prompt": "कृपया अपना बुकिंग कोड बताएं ताकि मैं आपकी अपॉइंटमेंट ढूंढ सकूँ।",
+        "topic_circuit_breaker": (
+            "लगता है हमें सही विषय खोजने में कठिनाई हो रही है। "
+            "एक सलाहकार जल्द ही आपसे संपर्क करेगा। "
+            "कॉल करने के लिए धन्यवाद — आपका दिन शुभ हो!"
+        ),
+        "booking_confirmed": (
+            "आपकी बुकिंग की पुष्टि हो गई है। "
+            "{topic_label} — {slot_readable}। "
+            "आपका बुकिंग कोड है {code_spoken}। "
+            "कृपया इसे नोट कर लें। "
+            "आपकी संपर्क जानकारी जमा करने के लिए एक सुरक्षित लिंक भेजा जाएगा। "
+            "कॉल करने के लिए धन्यवाद!"
+        ),
+        "waitlist_confirmed": (
+            "{queue_msg}हो गया। मैंने आपको {topic_label}{day_part}{time_part} के लिए वेटलिस्ट में जोड़ दिया है। "
+            "आपका वेटलिस्ट कोड है {code_spoken}। "
+            "स्लॉट खुलते ही सलाहकार आपसे संपर्क करेंगे। धन्यवाद!"
+        ),
+        "waitlist_decline": "कोई बात नहीं। जब भी ज़रूरत हो, दोबारा कॉल करें। अलविदा!",
+        "waitlist_redirect": (
+            "खेद है, उस समय के लिए कोई स्लॉट उपलब्ध नहीं है। "
+            "क्या आप कोई अलग दिन या समय आज़माना चाहेंगे? "
+            "या मैं आपको वेटलिस्ट में जोड़ सकता हूँ।"
+        ),
+        "waitlist_reprompt": "माफ़ करें, मैं समझ नहीं पाया। क्या आप वेटलिस्ट में जुड़ना चाहते हैं? हाँ या नहीं बोलिए।",
+        "code_not_found": "मैं आपका बुकिंग कोड नहीं समझ पाया। क्या आप दोबारा बता सकते हैं?",
     },
 }
 
@@ -377,11 +430,7 @@ class DialogueFSM:
         if ctx.topic_retry_count >= 4:
             # Circuit breaker — end gracefully after 3 failed attempts
             ctx.current_state = DialogueState.END
-            return ctx, (
-                "It seems we're having trouble finding the right topic. "
-                "A human advisor will reach out to you directly. "
-                "Thank you for calling — have a great day!"
-            )
+            return ctx, _s("topic_circuit_breaker")
         if ctx.topic_retry_count == 3:
             return ctx, _TOPIC_FINAL_NUDGE()
         if ctx.topic_retry_count == 2:
@@ -745,13 +794,8 @@ class DialogueFSM:
 
         topic_label = TOPIC_LABELS.get(ctx.topic or "", "your consultation")
         code_spoken = " - ".join(list(ctx.booking_code))
-        return ctx, (
-            f"Your booking is confirmed. "
-            f"{topic_label} on {slot_readable}. "
-            f"Your booking code is {code_spoken}. "
-            f"Please note it down. "
-            f"You'll receive a secure link to submit your contact details. "
-            f"Thank you for calling!"
+        return ctx, _s("booking_confirmed").format(
+            topic_label=topic_label, slot_readable=slot_readable, code_spoken=code_spoken
         )
 
     def _from_waitlist_offered(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
@@ -784,16 +828,14 @@ class DialogueFSM:
                          else "")
             queue_msg = f"You're number {position} in the queue. " if position > 1 else ""
 
-            return ctx, (
-                f"{queue_msg}Done. I've added you to the waitlist specifically for "
-                f"{topic_label}{day_part}{time_part}. "
-                f"Your waitlist code is {code_spoken}. "
-                f"An advisor will reach out as soon as that slot opens. Thank you!"
+            return ctx, _s("waitlist_confirmed").format(
+                queue_msg=queue_msg, topic_label=topic_label,
+                day_part=day_part, time_part=time_part, code_spoken=code_spoken
             )
 
         if any(w in user_lower for w in negative):
             ctx.current_state = DialogueState.END
-            return ctx, "No problem. Feel free to call back when you're ready. Goodbye!"
+            return ctx, _s("waitlist_decline")
 
         # User asked about other slots or gave an unclear response — re-prompt with context
         if any(w in user_lower for w in redirect):
@@ -801,20 +843,16 @@ class DialogueFSM:
             ctx.current_state = DialogueState.TIME_PREFERENCE_COLLECTED
             ctx.day_preference = None
             ctx.time_preference = None
-            return ctx, (
-                "Unfortunately no slots are open for that time. "
-                "Would you like to try a different day or time? "
-                "Or I can add you to the waitlist and we'll reach out when something opens."
-            )
+            return ctx, _s("waitlist_redirect")
 
         # Ambiguous — stay in WAITLIST_OFFERED and re-ask
-        return ctx, "Sorry, I didn't catch that. Would you like to be added to the waitlist? Just say yes or no."
+        return ctx, _s("waitlist_reprompt")
 
     def _handle_code_flow(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S12/S13 — reschedule or cancel by booking code."""
         code = resp.slots.get("existing_booking_code") or ctx.existing_booking_code
         if not code:
-            return ctx, "I didn't catch your booking code. Could you repeat it?"
+            return ctx, _s("code_not_found")
 
         ctx.existing_booking_code = code
         if ctx.current_state == DialogueState.CANCEL_CODE_COLLECTED:
