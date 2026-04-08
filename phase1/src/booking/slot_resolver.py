@@ -2,9 +2,8 @@
 src/booking/slot_resolver.py
 
 Resolves natural language time preferences ("Monday at 2 PM") to available
-calendar slots from mock_calendar.json.
-
-No external APIs — works entirely off the mock calendar file.
+calendar slots. Tries Google Calendar freeBusy API first; falls back to
+mock_calendar.json if credentials are missing or the API call fails.
 """
 
 import json
@@ -274,6 +273,182 @@ def parse_datetime_summary(
     return f"{date_str} at {time_str}", needs_confirmation
 
 
+def _resolve_slots_gcal(
+    candidate_dates: list[datetime],
+    time_band: tuple[int, int] | None,
+    max_results: int = 2,
+    slot_duration_minutes: int = 30,
+    business_start_hour: int = 9,
+    business_end_hour: int = 18,
+) -> list[CalendarSlot]:
+    """
+    Query Google Calendar freeBusy API to find available advisor slots.
+
+    Generates every `slot_duration_minutes`-min window during business hours
+    for each candidate date, then subtracts busy intervals reported by the
+    Calendar API.  Returns up to `max_results` free slots.
+    """
+    try:
+        import sys
+        from pathlib import Path
+
+        # Locate phase4 on sys.path so we can reuse the credential loader
+        _here = Path(__file__).resolve()
+        for _p in _here.parents:
+            _candidate = _p / "phase4"
+            if _candidate.exists():
+                _phase4_src = str(_candidate / "src")
+                if _phase4_src not in sys.path:
+                    sys.path.insert(0, _phase4_src)
+                break
+
+        from mcp.config import get_service_account_info, _decode_if_base64  # type: ignore
+        from google.oauth2 import service_account  # type: ignore
+        from googleapiclient.discovery import build  # type: ignore
+
+        _SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+        sa_info = get_service_account_info()
+        creds = service_account.Credentials.from_service_account_info(sa_info, scopes=_SCOPES)
+        service = build("calendar", "v3", credentials=creds)
+
+        calendar_id = _decode_if_base64(os.environ.get("GOOGLE_CALENDAR_ID", ""))
+        if not calendar_id:
+            return []
+
+        # Determine overall time window to query.
+        # candidate_dates may be tz-aware (IST) or naive — normalise to IST-aware.
+        def _to_ist(dt: datetime, hour: int) -> datetime:
+            naive = dt.replace(hour=hour, minute=0, second=0, microsecond=0, tzinfo=None)
+            return IST.localize(naive)
+
+        all_starts = [_to_ist(d, business_start_hour) for d in candidate_dates]
+        all_ends   = [_to_ist(d, business_end_hour)   for d in candidate_dates]
+
+        query_start = min(all_starts)
+        query_end   = max(all_ends)
+
+        # isoformat() on an IST-aware datetime already includes "+05:30"
+        body = {
+            "timeMin": query_start.isoformat(),
+            "timeMax": query_end.isoformat(),
+            "timeZone": "Asia/Kolkata",
+            "items": [{"id": calendar_id}],
+        }
+        fb = service.freebusy().query(body=body).execute()
+        busy_intervals = fb.get("calendars", {}).get(calendar_id, {}).get("busy", [])
+
+        # Convert busy intervals to aware datetimes
+        busy: list[tuple[datetime, datetime]] = []
+        for interval in busy_intervals:
+            b_start = datetime.fromisoformat(interval["start"].replace("Z", "+00:00")).astimezone(IST)
+            b_end   = datetime.fromisoformat(interval["end"].replace("Z", "+00:00")).astimezone(IST)
+            busy.append((b_start, b_end))
+
+        slot_delta = timedelta(minutes=slot_duration_minutes)
+        now = datetime.now(IST)
+        results: list[CalendarSlot] = []
+
+        for day in candidate_dates:
+            cursor     = _to_ist(day, business_start_hour)
+            day_end_dt = _to_ist(day, business_end_hour)
+
+            # Narrow to time_band if given
+            if time_band:
+                band_start = max(cursor, _to_ist(day, time_band[0]))
+                band_end   = min(day_end_dt, _to_ist(day, time_band[1]))
+                if band_start < band_end:
+                    cursor     = band_start
+                    day_end_dt = band_end
+
+            while cursor + slot_delta <= day_end_dt:
+                slot_end = cursor + slot_delta
+                # Skip slots in the past
+                if slot_end <= now:
+                    cursor = slot_end
+                    continue
+                # Check overlap with any busy interval
+                is_busy = any(b_s < slot_end and b_e > cursor for b_s, b_e in busy)
+                if not is_busy:
+                    results.append(CalendarSlot(
+                        slot_id=f"gcal-{cursor.strftime('%Y%m%dT%H%M')}",
+                        start=cursor,
+                        end=slot_end,
+                        status="AVAILABLE",
+                        topic_affinity=[],
+                    ))
+                    if len(results) >= max_results:
+                        return results
+                cursor = slot_end
+
+        return results
+
+    except Exception:
+        return []
+
+
+def _resolve_slots_mock(
+    candidate_dates: list[datetime],
+    time_band: tuple[int, int] | None,
+    topic: str | None,
+    calendar_path: str | None,
+    max_results: int,
+) -> list[CalendarSlot]:
+    """Read available slots from mock_calendar.json."""
+    if calendar_path is None:
+        calendar_path = os.environ.get(
+            "MOCK_CALENDAR_PATH",
+            os.path.join(os.path.dirname(__file__), "..", "..", "data", "mock_calendar.json"),
+        )
+
+    with open(calendar_path, encoding="utf-8") as f:
+        cal = json.load(f)
+
+    all_slots: list[CalendarSlot] = []
+    for raw in cal.get("slots", []):
+        if raw.get("status") != "AVAILABLE":
+            continue
+        try:
+            start_dt = datetime.fromisoformat(raw["start"])
+            end_dt   = datetime.fromisoformat(raw["end"])
+            if start_dt.tzinfo is None:
+                start_dt = IST.localize(start_dt)
+            else:
+                start_dt = start_dt.astimezone(IST)
+            if end_dt.tzinfo is None:
+                end_dt = IST.localize(end_dt)
+            else:
+                end_dt = end_dt.astimezone(IST)
+            all_slots.append(CalendarSlot(
+                slot_id=raw["slot_id"],
+                start=start_dt,
+                end=end_dt,
+                status=raw["status"],
+                topic_affinity=raw.get("topic_affinity", []),
+            ))
+        except (KeyError, ValueError):
+            continue
+
+    if topic:
+        all_slots = [s for s in all_slots if not s.topic_affinity or topic in s.topic_affinity]
+
+    matched: list[CalendarSlot] = []
+    for slot in all_slots:
+        slot_date = slot.start.date()
+        for cand in candidate_dates:
+            if slot_date == cand.date():
+                matched.append(slot)
+                break
+
+    if time_band and matched:
+        start_h, end_h = time_band
+        time_matched = [s for s in matched if start_h <= s.start.hour < end_h]
+        if time_matched:
+            matched = time_matched
+
+    matched.sort(key=lambda s: s.start)
+    return matched[:max_results]
+
+
 def resolve_slots(
     day_preference: str,
     time_preference: str,
@@ -285,11 +460,14 @@ def resolve_slots(
     """
     Find available calendar slots matching the user's day/time preference.
 
+    Tries Google Calendar freeBusy API first (when GOOGLE_CALENDAR_ID is set).
+    Falls back to mock_calendar.json if credentials are missing or the API fails.
+
     Args:
         day_preference:  Natural language day, e.g. "Monday", "next Tuesday", "tomorrow".
         time_preference: Natural language time, e.g. "2 PM", "afternoon", "morning".
         topic:           Optional topic key for topic_affinity filtering.
-        calendar_path:   Path to mock_calendar.json. Reads from env if not given.
+        calendar_path:   Path to mock_calendar.json (used only for mock fallback).
         max_results:     Maximum number of slots to return (default 2).
         reference_date:  Override "today" for testing.
 
@@ -297,71 +475,16 @@ def resolve_slots(
         List of up to `max_results` CalendarSlot objects with status=AVAILABLE.
         Empty list if no slots match.
     """
-    if calendar_path is None:
-        calendar_path = os.environ.get(
-            "MOCK_CALENDAR_PATH",
-            os.path.join(os.path.dirname(__file__), "..", "..", "data", "mock_calendar.json"),
-        )
-
-    with open(calendar_path, encoding="utf-8") as f:
-        cal = json.load(f)
-
-    # Parse all slots into CalendarSlot objects
-    all_slots: list[CalendarSlot] = []
-    for raw in cal.get("slots", []):
-        if raw.get("status") != "AVAILABLE":
-            continue
-        try:
-            start_dt = datetime.fromisoformat(raw["start"])
-            end_dt = datetime.fromisoformat(raw["end"])
-            # Ensure IST-aware
-            if start_dt.tzinfo is None:
-                start_dt = IST.localize(start_dt)
-            else:
-                start_dt = start_dt.astimezone(IST)
-            if end_dt.tzinfo is None:
-                end_dt = IST.localize(end_dt)
-            else:
-                end_dt = end_dt.astimezone(IST)
-
-            all_slots.append(CalendarSlot(
-                slot_id=raw["slot_id"],
-                start=start_dt,
-                end=end_dt,
-                status=raw["status"],
-                topic_affinity=raw.get("topic_affinity", []),
-            ))
-        except (KeyError, ValueError):
-            continue
-
-    # Filter by topic affinity (slot with empty topic_affinity accepts any topic)
-    if topic:
-        all_slots = [
-            s for s in all_slots
-            if not s.topic_affinity or topic in s.topic_affinity
-        ]
-
-    # Parse preferences (now return tuples with confidence flags)
     candidate_dates, _ = _parse_day_preference(day_preference, reference_date)
     time_band, _       = _parse_time_preference(time_preference)
 
-    # Filter by day
-    matched: list[CalendarSlot] = []
-    for slot in all_slots:
-        slot_date = slot.start.date()
-        for cand in candidate_dates:
-            if slot_date == cand.date():
-                matched.append(slot)
-                break
+    # Try Google Calendar first (requires GOOGLE_CALENDAR_ID + service account)
+    use_gcal = bool(os.environ.get("GOOGLE_CALENDAR_ID", "").strip())
+    if use_gcal:
+        gcal_slots = _resolve_slots_gcal(candidate_dates, time_band, max_results)
+        if gcal_slots:
+            return gcal_slots
+        # GCal returned empty — fall through to mock (handles misconfiguration gracefully)
 
-    # Filter by time band
-    if time_band and matched:
-        start_h, end_h = time_band
-        time_matched = [s for s in matched if start_h <= s.start.hour < end_h]
-        if time_matched:
-            matched = time_matched
-        # If time filter leaves nothing, keep the day-matched slots (graceful degradation)
-
-    # Sort by start time and return up to max_results
-    matched.sort(key=lambda s: s.start)
-    return matched[:max_results]
+    # Fall back to mock calendar
+    return _resolve_slots_mock(candidate_dates, time_band, topic, calendar_path, max_results)

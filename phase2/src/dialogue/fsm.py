@@ -460,14 +460,14 @@ class DialogueFSM:
         day_pref  = ctx.day_preference or "this week"
         time_pref = ctx.time_preference or "any"
 
-        # Echo back interpretation; re-ask if truly unparseable
-        understood, needs_confirm = parse_datetime_summary(day_pref, time_pref)
-        if needs_confirm:
+        # Only re-ask if day is completely unparseable (no candidate dates at all)
+        _, needs_confirm = parse_datetime_summary(day_pref, time_pref)
+        candidate_dates, _ = _parse_day_preference(day_pref)
+        if needs_confirm and not candidate_dates:
             ctx.current_state = DialogueState.TIME_PREFERENCE_COLLECTED
             return ctx, (
-                f"Just to confirm — did you mean {understood}? "
-                f"Could you say the date and time a bit more specifically? "
-                f"For example: 'Monday 10th April at 2 PM'."
+                f"I didn't quite catch the date. "
+                f"Could you say something like: 'Monday', 'this week', or '10th April'?"
             )
 
         def _merge(base: list, additions: list) -> list:
@@ -556,7 +556,14 @@ class DialogueFSM:
 
         on_requested = [s for s in slots if target_date and s.start.date() == target_date]
 
-        if len(on_requested) == len(slots):
+        if target_date is None:
+            # Range-based query (e.g. "this week", "next week") — all found slots are valid
+            next_day_label = slots[0].start.strftime("%A, %d %b")
+            preamble = (
+                f"Here are the available slots{time_clause}: "
+                f"The earliest is {next_day_label}. "
+            )
+        elif len(on_requested) == len(slots):
             preamble = f"I found {len(slots)} slot(s) on {day_pref}{time_clause}. "
         elif on_requested:
             preamble = (
