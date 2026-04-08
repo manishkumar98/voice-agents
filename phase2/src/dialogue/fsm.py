@@ -22,75 +22,146 @@ IST = pytz.timezone("Asia/Kolkata")
 
 # ─── Static responses ─────────────────────────────────────────────────────────
 
-_GREETING = (
-    "Hello! I'm the Advisor Scheduling assistant. "
-    "I'll help you book a consultation in about two minutes."
-)
+_STRINGS = {
+    "en-IN": {
+        "greeting": (
+            "Hello! I'm the Advisor Scheduling assistant. "
+            "I'll help you book a consultation in about two minutes."
+        ),
+        "disclaimer": (
+            "Quick note: this service is for scheduling only. "
+            "Our advisors provide informational guidance, not investment advice. "
+            "Shall we continue?"
+        ),
+        "topic_prompt": (
+            "Great. What topic would you like to discuss? "
+            "I can help with: KYC and onboarding, SIP and mandates, "
+            "statements and tax documents, withdrawals and timelines, "
+            "or account changes and nominee updates."
+        ),
+        "topic_clarity": (
+            "To connect you with the right advisor, I need you to choose one specific topic: "
+            "KYC and onboarding, SIP and mandates, statements and tax documents, "
+            "withdrawals and timelines, or account changes. Which one applies to you?"
+        ),
+        "topic_final_nudge": (
+            "I still need a topic to proceed. Just say one of: KYC, SIP, statements, "
+            "withdrawals, or account changes — whichever fits best."
+        ),
+        "time_prompt": "What day and time works best for you this week or next?",
+        "refusal_advice": (
+            "I'm not able to provide investment advice. "
+            "I can help you book a consultation with an advisor. "
+            "Would you like to do that?"
+        ),
+        "refusal_pii": (
+            "Please don't share personal details on this call. "
+            "You'll receive a secure link after booking to submit your contact information."
+        ),
+        "out_of_scope": "I'm only able to help with advisor appointment scheduling today.",
+        "timezone": (
+            "All our appointment slots are in IST (India Standard Time, UTC+5:30). "
+            "Please use a timezone converter to find your local equivalent. "
+            "Would you like to book a slot?"
+        ),
+        "error": (
+            "I'm having trouble understanding. "
+            "Let me connect you with our support team. Goodbye."
+        ),
+        "farewell": "Thank you for calling. Have a great day!",
+        "end_call": (
+            "Thank you for reaching out. We'll be happy to help whenever you're ready. "
+            "Have a wonderful day!"
+        ),
+        "waitlist": (
+            "I'm sorry, no slots are available for your requested time. "
+            "Would you like to be added to our waitlist? "
+            "We'll contact you as soon as a slot opens."
+        ),
+        "booking_code_prompt": "Please share your booking code so I can find your appointment.",
+    },
+    "hi-IN": {
+        "greeting": (
+            "नमस्ते! मैं Advisor Scheduling सहायक हूँ। "
+            "मैं आपकी लगभग दो मिनट में एक परामर्श बुक करने में मदद करूँगा।"
+        ),
+        "disclaimer": (
+            "एक छोटी सी जानकारी: यह सेवा केवल अपॉइंटमेंट शेड्यूलिंग के लिए है। "
+            "हमारे सलाहकार मार्गदर्शन देते हैं, निवेश सलाह नहीं। "
+            "क्या हम आगे बढ़ें?"
+        ),
+        "topic_prompt": (
+            "बढ़िया। आप किस विषय पर चर्चा करना चाहते हैं? "
+            "मैं इनमें मदद कर सकता हूँ: KYC और ऑनबोर्डिंग, SIP और मैंडेट, "
+            "स्टेटमेंट और टैक्स दस्तावेज़, निकासी, "
+            "या खाते में बदलाव और नॉमिनी अपडेट।"
+        ),
+        "topic_clarity": (
+            "सही सलाहकार से जोड़ने के लिए, कृपया एक विषय चुनें: "
+            "KYC और ऑनबोर्डिंग, SIP और मैंडेट, स्टेटमेंट और टैक्स, "
+            "निकासी, या खाता परिवर्तन। आपके लिए कौन सा सही है?"
+        ),
+        "topic_final_nudge": (
+            "आगे बढ़ने के लिए मुझे एक विषय चाहिए। बस बोलिए: KYC, SIP, स्टेटमेंट, "
+            "निकासी, या खाता परिवर्तन।"
+        ),
+        "time_prompt": "इस सप्ताह या अगले सप्ताह कौन सा दिन और समय आपके लिए सुविधाजनक है?",
+        "refusal_advice": (
+            "मैं निवेश सलाह देने में असमर्थ हूँ। "
+            "मैं आपकी सलाहकार के साथ मुलाकात बुक करने में मदद कर सकता हूँ। "
+            "क्या आप बुकिंग करना चाहेंगे?"
+        ),
+        "refusal_pii": (
+            "कृपया इस कॉल पर व्यक्तिगत जानकारी साझा न करें। "
+            "बुकिंग के बाद आपको एक सुरक्षित लिंक मिलेगा।"
+        ),
+        "out_of_scope": "मैं केवल सलाहकार अपॉइंटमेंट शेड्यूलिंग में मदद कर सकता हूँ।",
+        "timezone": (
+            "हमारे सभी अपॉइंटमेंट IST (भारतीय मानक समय, UTC+5:30) में हैं। "
+            "अपने स्थानीय समय के लिए कृपया टाइमज़ोन कन्वर्टर का उपयोग करें। "
+            "क्या आप स्लॉट बुक करना चाहेंगे?"
+        ),
+        "error": (
+            "मुझे समझने में कठिनाई हो रही है। "
+            "कृपया हमारी सपोर्ट टीम से संपर्क करें। धन्यवाद।"
+        ),
+        "farewell": "कॉल करने के लिए धन्यवाद। आपका दिन शुभ हो!",
+        "end_call": (
+            "संपर्क करने के लिए धन्यवाद। जब भी ज़रूरत हो हम मदद के लिए तैयार हैं। "
+            "आपका दिन अच्छा हो!"
+        ),
+        "waitlist": (
+            "खेद है, आपके अनुरोधित समय के लिए कोई स्लॉट उपलब्ध नहीं है। "
+            "क्या आप वेटलिस्ट में जुड़ना चाहेंगे? "
+            "स्लॉट खुलते ही हम आपसे संपर्क करेंगे।"
+        ),
+        "booking_code_prompt": "कृपया अपना बुकिंग कोड बताएं ताकि मैं आपकी अपॉइंटमेंट ढूंढ सकूँ।",
+    },
+}
 
-_DISCLAIMER = (
-    "Quick note: this service is for scheduling only. "
-    "Our advisors provide informational guidance, not investment advice. "
-    "Shall we continue?"
-)
 
-_TOPIC_PROMPT = (
-    "Great. What topic would you like to discuss? "
-    "I can help with: KYC and onboarding, SIP and mandates, "
-    "statements and tax documents, withdrawals and timelines, "
-    "or account changes and nominee updates."
-)
+def _s(key: str) -> str:
+    """Return the speech string for the current language (from TTS_LANGUAGE env var)."""
+    lang = os.environ.get("TTS_LANGUAGE", "en-IN")
+    return _STRINGS.get(lang, _STRINGS["en-IN"])[key]
 
-_TOPIC_CLARITY = (
-    "To connect you with the right advisor, I need you to choose one specific topic: "
-    "KYC and onboarding, SIP and mandates, statements and tax documents, "
-    "withdrawals and timelines, or account changes. Which one applies to you?"
-)
 
-_TOPIC_FINAL_NUDGE = (
-    "I still need a topic to proceed. Just say one of: KYC, SIP, statements, "
-    "withdrawals, or account changes — whichever fits best."
-)
-
-_TIME_PROMPT = "What day and time works best for you this week or next?"
-
-_REFUSAL_ADVICE = (
-    "I'm not able to provide investment advice. "
-    "I can help you book a consultation with an advisor. "
-    "Would you like to do that?"
-)
-
-_REFUSAL_PII = (
-    "Please don't share personal details on this call. "
-    "You'll receive a secure link after booking to submit your contact information."
-)
-
-_OUT_OF_SCOPE = "I'm only able to help with advisor appointment scheduling today."
-
-_TIMEZONE_RESPONSE = (
-    "All our appointment slots are in IST (India Standard Time, UTC+5:30). "
-    "Please use a timezone converter to find your local equivalent. "
-    "Would you like to book a slot?"
-)
-
-_ERROR_MSG = (
-    "I'm having trouble understanding. "
-    "Let me connect you with our support team. Goodbye."
-)
-
-_FAREWELL = "Thank you for calling. Have a great day!"
-
-_END_CALL = (
-    "Thank you for reaching out. We'll be happy to help whenever you're ready. "
-    "Have a wonderful day!"
-)
-
-_WAITLIST_OFFER = (
-    "I'm sorry, no slots are available for your requested time. "
-    "Would you like to be added to our waitlist? "
-    "We'll contact you as soon as a slot opens."
-)
-
-_BOOKING_CODE_PROMPT = "Please share your booking code so I can find your appointment."
+# Keep legacy names as callables for any external references
+def _GREETING():        return _s("greeting")
+def _DISCLAIMER():      return _s("disclaimer")
+def _TOPIC_PROMPT():    return _s("topic_prompt")
+def _TOPIC_CLARITY():   return _s("topic_clarity")
+def _TOPIC_FINAL_NUDGE(): return _s("topic_final_nudge")
+def _TIME_PROMPT():     return _s("time_prompt")
+def _REFUSAL_ADVICE():  return _s("refusal_advice")
+def _REFUSAL_PII():     return _s("refusal_pii")
+def _OUT_OF_SCOPE():    return _s("out_of_scope")
+def _TIMEZONE_RESPONSE(): return _s("timezone")
+def _ERROR_MSG():       return _s("error")
+def _FAREWELL():        return _s("farewell")
+def _END_CALL():        return _s("end_call")
+def _WAITLIST_OFFER():  return _s("waitlist")
+def _BOOKING_CODE_PROMPT(): return _s("booking_code_prompt")
 
 MAX_NO_INPUT = 3
 
@@ -122,7 +193,7 @@ class DialogueFSM:
             current_state=DialogueState.IDLE,
         )
         ctx.current_state = DialogueState.GREETED
-        speech = f"{_GREETING} {_DISCLAIMER}"
+        speech = f"{_GREETING()} {_DISCLAIMER()}"
         return ctx, speech
 
     # ── Main turn processor ────────────────────────────────────────────────────
@@ -158,17 +229,17 @@ class DialogueFSM:
         # ── User wants to end the call — valid at any point ───────────────────
         if llm_response.intent == "end_call":
             ctx.current_state = DialogueState.END
-            return ctx, _END_CALL
+            return ctx, _END_CALL()
 
         # ── Compliance refusals — stay in same state ──────────────────────────
         if llm_response.compliance_flag == "refuse_advice":
-            return ctx, _REFUSAL_ADVICE
+            return ctx, _REFUSAL_ADVICE()
         if llm_response.compliance_flag == "refuse_pii":
-            return ctx, _REFUSAL_PII
+            return ctx, _REFUSAL_PII()
         if llm_response.compliance_flag == "out_of_scope":
-            return ctx, _OUT_OF_SCOPE
+            return ctx, _OUT_OF_SCOPE()
         if llm_response.intent == "timezone_query":
-            return ctx, _TIMEZONE_RESPONSE
+            return ctx, _TIMEZONE_RESPONSE()
 
         # ── Merge extracted slots into context ────────────────────────────────
         # In SLOTS_OFFERED we intentionally do NOT apply day/time from the LLM —
@@ -231,7 +302,7 @@ class DialogueFSM:
 
         if state == DialogueState.BOOKING_COMPLETE:
             ctx.current_state = DialogueState.END
-            return ctx, _FAREWELL
+            return ctx, _FAREWELL()
 
         if state == DialogueState.WAITLIST_OFFERED:
             return self._from_waitlist_offered(ctx, llm_response)
@@ -241,10 +312,10 @@ class DialogueFSM:
 
         if state == DialogueState.ERROR:
             ctx.current_state = DialogueState.END
-            return ctx, _FAREWELL
+            return ctx, _FAREWELL()
 
         # Terminal states — nothing more to do
-        return ctx, _FAREWELL
+        return ctx, _FAREWELL()
 
     # ── State handlers ─────────────────────────────────────────────────────────
 
@@ -256,7 +327,7 @@ class DialogueFSM:
             ctx.intent = resp.intent
             ctx.current_state = DialogueState.INTENT_IDENTIFIED
             return self._collect_topic(ctx, resp)
-        return ctx, _TOPIC_PROMPT
+        return ctx, _TOPIC_PROMPT()
 
     def _from_disclaimer(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S2 → branch by intent."""
@@ -268,18 +339,18 @@ class DialogueFSM:
 
         if resp.intent == "reschedule":
             ctx.current_state = DialogueState.RESCHEDULE_CODE_COLLECTED
-            return ctx, _BOOKING_CODE_PROMPT
+            return ctx, _BOOKING_CODE_PROMPT()
 
         if resp.intent == "cancel":
             ctx.current_state = DialogueState.CANCEL_CODE_COLLECTED
-            return ctx, _BOOKING_CODE_PROMPT
+            return ctx, _BOOKING_CODE_PROMPT()
 
         if resp.intent in ("what_to_prepare", "check_availability"):
             ctx.current_state = DialogueState.INTENT_IDENTIFIED
             return self._collect_topic(ctx, resp)
 
         # Unclear intent — re-prompt
-        return ctx, _TOPIC_PROMPT
+        return ctx, _TOPIC_PROMPT()
 
     def _collect_topic(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S3/S4 — ensure topic is filled, then move to slot resolution.
@@ -297,7 +368,7 @@ class DialogueFSM:
             ctx.current_state = DialogueState.TOPIC_COLLECTED
             if ctx.day_preference:
                 return self._offer_slots(ctx, resp)
-            return ctx, _TIME_PROMPT
+            return ctx, _TIME_PROMPT()
 
         # Topic not filled — escalate with each retry
         ctx.topic_retry_count += 1
@@ -312,10 +383,10 @@ class DialogueFSM:
                 "Thank you for calling — have a great day!"
             )
         if ctx.topic_retry_count == 3:
-            return ctx, _TOPIC_FINAL_NUDGE
+            return ctx, _TOPIC_FINAL_NUDGE()
         if ctx.topic_retry_count == 2:
-            return ctx, _TOPIC_CLARITY
-        return ctx, _TOPIC_PROMPT
+            return ctx, _TOPIC_CLARITY()
+        return ctx, _TOPIC_PROMPT()
 
     def _offer_slots(self, ctx: DialogueContext, _resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S5 — always offer exactly 2 slots; expand search if needed.
@@ -381,7 +452,7 @@ class DialogueFSM:
 
             if not fallback:
                 ctx.current_state = DialogueState.WAITLIST_OFFERED
-                return ctx, _WAITLIST_OFFER
+                return ctx, _WAITLIST_OFFER()
 
             next_day_label = fallback[0].start.strftime("%A, %d %b")
             slots = fallback[:2]
@@ -425,7 +496,7 @@ class DialogueFSM:
 
         if not slots:
             ctx.current_state = DialogueState.WAITLIST_OFFERED
-            return ctx, _WAITLIST_OFFER
+            return ctx, _WAITLIST_OFFER()
 
         ctx.current_state = DialogueState.SLOTS_OFFERED
         ctx.offered_slots = [
@@ -477,14 +548,14 @@ class DialogueFSM:
             ctx.current_state = DialogueState.WAITLIST_OFFERED
             return ctx, (
                 "I'm having trouble matching that to an available slot. "
-                "Let me add you to the waitlist and we'll call you back. " + _WAITLIST_OFFER
+                "Let me add you to the waitlist and we'll call you back. " + _WAITLIST_OFFER()
             )
 
         # ── Waitlist request ────────────────────────────────────────────────
         waitlist_words = {"waitlist", "wait list", "wait-list", "add me", "notify me", "let me know"}
         if any(w in speech_lower for w in waitlist_words):
             ctx.current_state = DialogueState.WAITLIST_OFFERED
-            return ctx, _WAITLIST_OFFER
+            return ctx, _WAITLIST_OFFER()
 
         # ── Ordinal / option selector — must run BEFORE day/time extraction ─
         # "1st", "first", "option 1" → Option 1
@@ -789,7 +860,7 @@ class DialogueFSM:
 
     def _go_error(self, ctx: DialogueContext) -> tuple[DialogueContext, str]:
         ctx.current_state = DialogueState.ERROR
-        return ctx, _ERROR_MSG
+        return ctx, _ERROR_MSG()
 
     def _re_prompt(self, ctx: DialogueContext) -> str:
         """Short re-prompt based on current state."""

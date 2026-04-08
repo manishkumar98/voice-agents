@@ -440,6 +440,14 @@ class IntentRouter:
             return _rule_based_parse(user_input, ctx)
 
         system_prompt = _SYSTEM_PROMPT
+        # If Hindi is selected, instruct LLM to reply in Hindi
+        lang = os.environ.get("TTS_LANGUAGE", "en-IN")
+        if lang == "hi-IN":
+            system_prompt = system_prompt + (
+                "\n\nIMPORTANT: The user is speaking Hindi. "
+                "The \"speech\" field in your JSON response MUST be in Hindi (Devanagari script). "
+                "All acknowledgements, questions, and responses must be in Hindi."
+            )
         user_message = _build_user_message(user_input, ctx)
 
         try:
