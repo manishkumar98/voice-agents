@@ -39,10 +39,8 @@ try:
 except ImportError:
     pass
 
-os.environ.setdefault(
-    "MOCK_CALENDAR_PATH",
-    str(_root_dir / "phase1" / "data" / "mock_calendar.json"),
-)
+# Force absolute path — .env has a relative path that breaks when cwd differs
+os.environ["MOCK_CALENDAR_PATH"] = str(_root_dir / "phase1" / "data" / "mock_calendar.json")
 
 # ── Imports ───────────────────────────────────────────────────────────────────
 import tempfile
