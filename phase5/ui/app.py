@@ -335,12 +335,15 @@ if st.session_state.p5_mode == "voice":
 
 else:
     # Text mode
-    with st.form("p5_text_form", clear_on_submit=True):
-        user_input = st.text_input("Your message:", placeholder="Type here and press Enter…",
-                                   label_visibility="collapsed")
-        submitted = st.form_submit_button("Send ➤")
-    if submitted and user_input.strip():
-        _process_user_input(user_input.strip())
+    _placeholder = "यहाँ टाइप करें..." if _cur_lang == "hi-IN" else "Type your message..."
+    user_input = st.chat_input(_placeholder)
+    if user_input and user_input.strip():
+        # Dedup guard: (input, history_length) ensures same input is never
+        # processed twice on back-to-back reruns triggered by st.rerun()
+        _run_key = f"{user_input.strip()}|{len(st.session_state.p5_history)}"
+        if st.session_state.get("_last_run_key") != _run_key:
+            st.session_state["_last_run_key"] = _run_key
+            _process_user_input(user_input.strip())
         st.rerun()
 
 # ── Sidebar: debug info ────────────────────────────────────────────────────────
