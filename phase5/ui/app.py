@@ -324,14 +324,20 @@ if st.session_state.p5_mode == "voice":
     _mic_label = "🎤 बोलिए (Hindi में)" if _cur_lang == "hi-IN" else "🎤 Record your message"
     audio_input = st.audio_input(_mic_label, key="p5_audio_input")
     if audio_input is not None:
-        with st.spinner("Transcribing..." if _cur_lang == "en-IN" else "सुन रहे हैं..."):
-            transcript = _stt(audio_input.read(), language=_cur_lang)
-        if transcript:
-            st.caption(f"You said: *{transcript}*")
-            _process_user_input(transcript)
-            st.rerun()
-        else:
-            st.warning("Could not transcribe audio. Please try again or switch to text mode.")
+        # Dedup guard: hash audio bytes so same recording isn't re-processed on rerun
+        import hashlib as _hashlib
+        _audio_bytes = audio_input.read()
+        _audio_key = f"{_hashlib.md5(_audio_bytes).hexdigest()}|{len(st.session_state.p5_history)}"
+        if st.session_state.get("_last_run_key") != _audio_key:
+            st.session_state["_last_run_key"] = _audio_key
+            with st.spinner("Transcribing..." if _cur_lang == "en-IN" else "सुन रहे हैं..."):
+                transcript = _stt(_audio_bytes, language=_cur_lang)
+            if transcript:
+                st.caption(f"You said: *{transcript}*")
+                _process_user_input(transcript)
+            else:
+                st.warning("Could not transcribe audio. Please try again or switch to text mode.")
+        st.rerun()
 
 else:
     # Text mode
