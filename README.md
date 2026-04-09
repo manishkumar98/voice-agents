@@ -8,7 +8,7 @@ confirms the booking, generates a booking code, and triggers Google Calendar / S
 
 ## Live Demo
 
-**Streamlit App:** [https://voice-agent-production.up.railway.app](https://voice-agent-production.up.railway.app)
+**Streamlit App:** [https://voice-agents-production-3f40.up.railway.app](https://voice-agents-production-3f40.up.railway.app)
 
 Supports **Voice mode** (microphone → Whisper STT → Sarvam TTS) and **Text mode**.
 Available in **English (en-IN)** and **हिंदी (hi-IN)**.
