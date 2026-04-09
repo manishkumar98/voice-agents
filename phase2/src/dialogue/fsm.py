@@ -106,6 +106,43 @@ _STRINGS = {
         ),
         "waitlist_reprompt": "Sorry, I didn't catch that. Would you like to be added to the waitlist? Just say yes or no.",
         "code_not_found": "I didn't catch your booking code. Could you repeat it?",
+        "date_clarify": (
+            "I didn't quite catch the date. "
+            "Could you say something like: 'Monday', 'this week', or '10th April'?"
+        ),
+        "slots_none_on_day": (
+            "Sorry, no slots are available on {day_pref}{time_clause}. "
+            "The next available day is {next_day_label}. "
+            "Here are the options — or I can add you to the waitlist: "
+        ),
+        "slots_range": (
+            "Here are the available slots{time_clause}: "
+            "The earliest is {next_day_label}. "
+        ),
+        "slots_found": "I found {count} slot(s) on {day_pref}{time_clause}. ",
+        "slots_only_one": (
+            "I only have 1 slot on {day_pref}{time_clause}. "
+            "Here are the two closest available options: "
+        ),
+        "slots_no_match": (
+            "No slots match {day_pref}{time_clause}. "
+            "The next available day is {next_day_label}. "
+            "Here are the closest options: "
+        ),
+        "slots_option": "Option {i}: {slot_time}.",
+        "slots_waitlist_q": " Which would you prefer, or shall I add you to the waitlist?",
+        "slots_which": " Which would you prefer?",
+        "slots_again": "Here are the available options again. ",
+        "slots_sorry": "I'm sorry, I didn't catch that. Here are the available options: ",
+        "slots_trouble": (
+            "I'm having trouble matching that to an available slot. "
+            "Let me add you to the waitlist and we'll call you back. "
+        ),
+        "slot_confirm": "Perfect. Confirming: {topic_label} consultation on {slot_str}. Is that correct?",
+        "slots_new_day": (
+            "No problem. What other day and time works for you? "
+            "Or I can add you to the waitlist for your original preference."
+        ),
     },
     "hi-IN": {
         "greeting": (
@@ -189,6 +226,43 @@ _STRINGS = {
         ),
         "waitlist_reprompt": "माफ़ करें, मैं समझ नहीं पाया। क्या आप वेटलिस्ट में जुड़ना चाहते हैं? हाँ या नहीं बोलिए।",
         "code_not_found": "मैं आपका बुकिंग कोड नहीं समझ पाया। क्या आप दोबारा बता सकते हैं?",
+        "date_clarify": (
+            "मैं तारीख समझ नहीं पाया। "
+            "कृपया कुछ ऐसा बोलिए: 'सोमवार', 'इस सप्ताह', या '10 अप्रैल'।"
+        ),
+        "slots_none_on_day": (
+            "खेद है, {day_pref}{time_clause} के लिए कोई स्लॉट उपलब्ध नहीं है। "
+            "अगला उपलब्ध दिन {next_day_label} है। "
+            "ये विकल्प हैं — या मैं आपको वेटलिस्ट में जोड़ सकता हूँ: "
+        ),
+        "slots_range": (
+            "उपलब्ध स्लॉट{time_clause}: "
+            "सबसे पहला {next_day_label} को है। "
+        ),
+        "slots_found": "{day_pref}{time_clause} पर {count} स्लॉट मिले। ",
+        "slots_only_one": (
+            "{day_pref}{time_clause} पर केवल 1 स्लॉट है। "
+            "ये दो सबसे नज़दीकी विकल्प हैं: "
+        ),
+        "slots_no_match": (
+            "{day_pref}{time_clause} के लिए कोई स्लॉट नहीं मिला। "
+            "अगला उपलब्ध दिन {next_day_label} है। "
+            "ये सबसे नज़दीकी विकल्प हैं: "
+        ),
+        "slots_option": "विकल्प {i}: {slot_time}।",
+        "slots_waitlist_q": " आप कौन सा पसंद करेंगे, या क्या मैं आपको वेटलिस्ट में जोड़ूँ?",
+        "slots_which": " आप कौन सा पसंद करेंगे?",
+        "slots_again": "ये उपलब्ध विकल्प फिर से हैं। ",
+        "slots_sorry": "माफ़ करें, मैं समझ नहीं पाया। ये उपलब्ध विकल्प हैं: ",
+        "slots_trouble": (
+            "मुझे उपलब्ध स्लॉट से मिलान करने में कठिनाई हो रही है। "
+            "मैं आपको वेटलिस्ट में जोड़ता हूँ और हम जल्द कॉल करेंगे। "
+        ),
+        "slot_confirm": "ठीक है। पुष्टि कर रहा हूँ: {topic_label} — {slot_str}। क्या यह सही है?",
+        "slots_new_day": (
+            "कोई बात नहीं। आपके लिए कौन सा अन्य दिन और समय ठीक रहेगा? "
+            "या मैं आपको वेटलिस्ट में जोड़ सकता हूँ।"
+        ),
     },
 }
 
@@ -285,12 +359,18 @@ class DialogueFSM:
             return ctx, _END_CALL()
 
         # ── Compliance refusals — stay in same state ──────────────────────────
-        if llm_response.compliance_flag == "refuse_advice":
-            return ctx, _REFUSAL_ADVICE()
-        if llm_response.compliance_flag == "refuse_pii":
-            return ctx, _REFUSAL_PII()
-        if llm_response.compliance_flag == "out_of_scope":
-            return ctx, _OUT_OF_SCOPE()
+        # Skip compliance checks in greeting/disclaimer states — any response
+        # there is just an acknowledgement to proceed, not truly out-of-scope.
+        _in_greeting_state = ctx.current_state in (
+            DialogueState.GREETED, DialogueState.DISCLAIMER_CONFIRMED
+        )
+        if not _in_greeting_state:
+            if llm_response.compliance_flag == "refuse_advice":
+                return ctx, _REFUSAL_ADVICE()
+            if llm_response.compliance_flag == "refuse_pii":
+                return ctx, _REFUSAL_PII()
+            if llm_response.compliance_flag == "out_of_scope":
+                return ctx, _OUT_OF_SCOPE()
         if llm_response.intent == "timezone_query":
             return ctx, _TIMEZONE_RESPONSE()
 
@@ -465,10 +545,7 @@ class DialogueFSM:
         candidate_dates, _ = _parse_day_preference(day_pref)
         if needs_confirm and not candidate_dates:
             ctx.current_state = DialogueState.TIME_PREFERENCE_COLLECTED
-            return ctx, (
-                f"I didn't quite catch the date. "
-                f"Could you say something like: 'Monday', 'this week', or '10th April'?"
-            )
+            return ctx, _s("date_clarify")
 
         def _merge(base: list, additions: list) -> list:
             seen = {s.slot_id for s in base}
@@ -514,15 +591,13 @@ class DialogueFSM:
             ]
             ctx.resolved_slot = ctx.offered_slots[0]
 
-            preamble = (
-                f"Sorry, no slots are available on {day_pref}{time_clause}. "
-                f"The next available day is {next_day_label}. "
-                "Here are the options — or I can add you to the waitlist: "
+            preamble = _s("slots_none_on_day").format(
+                day_pref=day_pref, time_clause=time_clause, next_day_label=next_day_label
             )
             parts = [preamble]
             for i, s in enumerate(slots, 1):
-                parts.append(f"Option {i}: {s.start_ist_str()}.")
-            parts.append(" Which would you prefer, or shall I add you to the waitlist?")
+                parts.append(_s("slots_option").format(i=i, slot_time=s.start_ist_str()))
+            parts.append(_s("slots_waitlist_q"))
             return ctx, "".join(parts)
 
         # ── Step 2: Day has slots — apply time filter then fill up to 2 ───────
@@ -557,31 +632,22 @@ class DialogueFSM:
         on_requested = [s for s in slots if target_date and s.start.date() == target_date]
 
         if target_date is None:
-            # Range-based query (e.g. "this week", "next week") — all found slots are valid
             next_day_label = slots[0].start.strftime("%A, %d %b")
-            preamble = (
-                f"Here are the available slots{time_clause}: "
-                f"The earliest is {next_day_label}. "
-            )
+            preamble = _s("slots_range").format(time_clause=time_clause, next_day_label=next_day_label)
         elif len(on_requested) == len(slots):
-            preamble = f"I found {len(slots)} slot(s) on {day_pref}{time_clause}. "
+            preamble = _s("slots_found").format(count=len(slots), day_pref=day_pref, time_clause=time_clause)
         elif on_requested:
-            preamble = (
-                f"I only have 1 slot on {day_pref}{time_clause}. "
-                "Here are the two closest available options: "
-            )
+            preamble = _s("slots_only_one").format(day_pref=day_pref, time_clause=time_clause)
         else:
             next_day_label = slots[0].start.strftime("%A, %d %b")
-            preamble = (
-                f"No slots match {day_pref}{time_clause}. "
-                f"The next available day is {next_day_label}. "
-                "Here are the closest options: "
+            preamble = _s("slots_no_match").format(
+                day_pref=day_pref, time_clause=time_clause, next_day_label=next_day_label
             )
 
         parts = [preamble]
         for i, s in enumerate(slots, 1):
-            parts.append(f"Option {i}: {s.start_ist_str()}.")
-        parts.append(" Which would you prefer, or shall I add you to the waitlist?")
+            parts.append(_s("slots_option").format(i=i, slot_time=s.start_ist_str()))
+        parts.append(_s("slots_waitlist_q"))
         return ctx, "".join(parts)
 
     def _from_slots_offered(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
@@ -602,10 +668,7 @@ class DialogueFSM:
         if ctx.slots_repeat_count > 2:
             ctx.slots_repeat_count = 0
             ctx.current_state = DialogueState.WAITLIST_OFFERED
-            return ctx, (
-                "I'm having trouble matching that to an available slot. "
-                "Let me add you to the waitlist and we'll call you back. " + _WAITLIST_OFFER()
-            )
+            return ctx, _s("slots_trouble") + _WAITLIST_OFFER()
 
         # ── Waitlist request ────────────────────────────────────────────────
         waitlist_words = {"waitlist", "wait list", "wait-list", "add me", "notify me", "let me know"}
@@ -632,13 +695,13 @@ class DialogueFSM:
                 ctx.current_state = DialogueState.SLOT_CONFIRMED
                 topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
                 slot_str = ctx.resolved_slot.get("start_ist", "your selected time")
-                return ctx, f"Perfect. Confirming: {topic_label} consultation on {slot_str}. Is that correct?"
+                return ctx, _s("slot_confirm").format(topic_label=topic_label, slot_str=slot_str)
             if any(w in _words for w in _opt2_words) and len(ctx.offered_slots) >= 2:
                 ctx.resolved_slot = ctx.offered_slots[1]
                 ctx.current_state = DialogueState.SLOT_CONFIRMED
                 topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
                 slot_str = ctx.resolved_slot.get("start_ist", "your selected time")
-                return ctx, f"Perfect. Confirming: {topic_label} consultation on {slot_str}. Is that correct?"
+                return ctx, _s("slot_confirm").format(topic_label=topic_label, slot_str=slot_str)
 
         # ── Slot matching: check if user is selecting an offered slot ────────
         # Handles: "10am", "10am is fine", "monday 10am", "option 1", "second"
@@ -690,10 +753,7 @@ class DialogueFSM:
                 ctx.current_state = DialogueState.SLOT_CONFIRMED
                 topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
                 slot_str = ctx.resolved_slot.get("start_ist", "your selected time")
-                return ctx, (
-                    f"Perfect. Confirming: {topic_label} consultation "
-                    f"on {slot_str}. Is that correct?"
-                )
+                return ctx, _s("slot_confirm").format(topic_label=topic_label, slot_str=slot_str)
 
             # No match — genuinely new preference: now apply day/time to ctx
             if new_day:
@@ -707,10 +767,10 @@ class DialogueFSM:
         question_words = {"available", "is there", "do you have", "can i", "any slot", "?"}
         if any(w in speech_lower for w in question_words):
             if ctx.offered_slots:
-                parts = ["Here are the available options again. "]
+                parts = [_s("slots_again")]
                 for i, sl in enumerate(ctx.offered_slots, 1):
-                    parts.append(f"Option {i}: {sl['start_ist']}.")
-                parts.append(" Which would you prefer, or shall I add you to the waitlist?")
+                    parts.append(_s("slots_option").format(i=i, slot_time=sl["start_ist"]))
+                parts.append(_s("slots_waitlist_q"))
                 return ctx, "".join(parts)
 
         # ── Rejection — ask for a different day/time ────────────────────────
@@ -719,10 +779,7 @@ class DialogueFSM:
             ctx.current_state = DialogueState.TIME_PREFERENCE_COLLECTED
             ctx.day_preference = None
             ctx.time_preference = None
-            return ctx, (
-                "No problem. What other day and time works for you? "
-                "Or I can add you to the waitlist for your original preference."
-            )
+            return ctx, _s("slots_new_day")
 
         # Detect which option the user picked (option 2 / second)
         _picked_second = False
@@ -743,11 +800,10 @@ class DialogueFSM:
         _is_affirm = _picked_second or any(w in speech_lower for w in _affirm_words)
 
         if not _is_affirm and ctx.offered_slots:
-            # Unrecognised — re-present slots (state stays SLOTS_OFFERED)
-            parts = ["I'm sorry, I didn't catch that. Here are the available options: "]
+            parts = [_s("slots_sorry")]
             for i, sl in enumerate(ctx.offered_slots, 1):
-                parts.append(f"Option {i}: {sl['start_ist']}.")
-            parts.append(" Which would you prefer?")
+                parts.append(_s("slots_option").format(i=i, slot_time=sl["start_ist"]))
+            parts.append(_s("slots_which"))
             return ctx, "".join(parts)
 
         # Slot confirmed — always use human-readable IST string
@@ -757,10 +813,7 @@ class DialogueFSM:
             ctx.resolved_slot.get("start_ist", ctx.resolved_slot.get("start", "your selected time"))
             if ctx.resolved_slot else "your selected time"
         )
-        return ctx, (
-            f"Perfect. Confirming: {topic_label} consultation "
-            f"on {slot_str}. Is that correct?"
-        )
+        return ctx, _s("slot_confirm").format(topic_label=topic_label, slot_str=slot_str)
 
     def _dispatch_mcp(self, ctx: DialogueContext) -> tuple[DialogueContext, str]:
         """
