@@ -48,7 +48,29 @@ st.set_page_config(
 st.markdown("""
 <style>
 /* ── Reset ────────────────────────────────────────────────────── */
-#MainMenu, header, footer { visibility: hidden; }
+/* Hide menu & footer but NOT the header — header contains sidebar toggle */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+
+/* Hide only the Streamlit toolbar content, keep the sidebar button */
+[data-testid="stToolbar"] { visibility: hidden; }
+[data-testid="stDecoration"] { display: none; }
+
+/* Make header transparent so it doesn't show as a bar */
+[data-testid="stHeader"] {
+    background: transparent !important;
+    border-bottom: none !important;
+}
+
+/* Keep sidebar collapse/expand button always visible */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    background: white !important;
+    border-radius: 0 8px 8px 0 !important;
+    box-shadow: 2px 0 8px rgba(109,40,217,0.15) !important;
+}
 
 /* ── Background — warm lavender → periwinkle (matches ZAY-G) ─── */
 .stApp {
