@@ -270,6 +270,39 @@ st.markdown("""
 /* Spinner */
 [data-testid="stSpinner"] > div { border-top-color: #7c3aed !important; }
 
+/* ── Radio buttons — override red → violet ────────────────────── */
+[data-testid="stRadio"] label {
+    color: #4c1d95 !important;
+    font-size: 0.91rem !important;
+}
+/* Selected radio dot */
+[data-testid="stRadio"] [data-testid="stMarkdownContainer"] { display: none; }
+div[role="radiogroup"] label div:first-child {
+    border-color: #7c3aed !important;
+}
+div[role="radiogroup"] input:checked + div {
+    background-color: #7c3aed !important;
+    border-color: #7c3aed !important;
+}
+/* The inner filled circle of selected radio */
+div[role="radiogroup"] input:checked ~ div svg { fill: #7c3aed !important; }
+
+/* Streamlit radio uses SVG-based rendering in newer versions */
+[data-baseweb="radio"] [data-checked="true"] > div {
+    background-color: #7c3aed !important;
+    border-color: #7c3aed !important;
+}
+[data-baseweb="radio"] > div {
+    border-color: #c4b5fd !important;
+}
+[data-baseweb="radio"]:hover > div {
+    border-color: #7c3aed !important;
+}
+/* Focus ring */
+[data-baseweb="radio"] [data-focus-visible="true"] > div {
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.25) !important;
+}
+
 /* ── Sidebar nav ──────────────────────────────────────────────── */
 .nav-item {
     display: flex; align-items: center; gap: 10px;
