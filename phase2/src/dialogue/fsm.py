@@ -50,8 +50,10 @@ _STRINGS = {
         ),
         "time_prompt": "What day and time works best for you this week or next?",
         "refusal_advice": (
-            "I'm not able to provide investment advice. "
-            "I can help you book a consultation with an advisor. "
+            "I'm not able to provide investment advice on this call. "
+            "For investor education, you can visit SEBI's portal at investor dot sebi dot gov dot in, "
+            "or AMFI India at amfiindia dot com slash investor-corner. "
+            "I can help you book a consultation with a human advisor. "
             "Would you like to do that?"
         ),
         "refusal_pii": (
@@ -171,8 +173,10 @@ _STRINGS = {
         ),
         "time_prompt": "इस सप्ताह या अगले सप्ताह कौन सा दिन और समय आपके लिए सुविधाजनक है?",
         "refusal_advice": (
-            "मैं निवेश सलाह देने में असमर्थ हूँ। "
-            "मैं आपकी सलाहकार के साथ मुलाकात बुक करने में मदद कर सकता हूँ। "
+            "मैं इस कॉल पर निवेश सलाह देने में असमर्थ हूँ। "
+            "निवेशक शिक्षा के लिए SEBI का पोर्टल investor.sebi.gov.in "
+            "या AMFI India का amfiindia.com/investor-corner देख सकते हैं। "
+            "मैं आपकी एक मानव सलाहकार के साथ मुलाकात बुक करने में मदद कर सकता हूँ। "
             "क्या आप बुकिंग करना चाहेंगे?"
         ),
         "refusal_pii": (
@@ -880,6 +884,13 @@ class DialogueFSM:
             ctx.waitlist_code = entry.waitlist_code
             ctx.current_state = DialogueState.WAITLIST_CONFIRMED
             code_spoken = " - ".join(list(entry.waitlist_code))
+
+            # Phase 4: create waitlist calendar hold + draft email
+            try:
+                from src.mcp.mcp_orchestrator import dispatch_mcp_sync, build_waitlist_payload
+                dispatch_mcp_sync(build_waitlist_payload(entry, ctx))
+            except Exception:
+                pass  # MCP unavailable — waitlist code still issued
 
             # Build contextual confirmation using whatever slots are filled
             topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")

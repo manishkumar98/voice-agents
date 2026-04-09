@@ -105,6 +105,46 @@ async def dispatch_mcp(payload: MCPPayload) -> MCPResults:
     return results
 
 
+def build_waitlist_payload(waitlist_entry, ctx) -> MCPPayload:
+    """
+    Build MCPPayload for a waitlist entry.
+    No confirmed slot exists, so a next-business-day placeholder is used for the
+    calendar hold; the title and notes make the waitlist nature explicit.
+    """
+    try:
+        from src.dialogue.states import TOPIC_LABELS
+    except ImportError:
+        TOPIC_LABELS = {}
+
+    topic_key   = ctx.topic or "general"
+    topic_label = TOPIC_LABELS.get(topic_key, topic_key.replace("_", " ").title())
+
+    # Placeholder time: next weekday at 10:00 AM IST
+    now_ist    = datetime.now(IST)
+    days_ahead = 1
+    while True:
+        candidate = now_ist + timedelta(days=days_ahead)
+        if candidate.weekday() < 5:   # Mon–Fri
+            break
+        days_ahead += 1
+    placeholder_start = candidate.replace(hour=10, minute=0, second=0, microsecond=0)
+    placeholder_end   = placeholder_start + timedelta(minutes=config.slot_duration_minutes)
+
+    preferred = f"{waitlist_entry.day_preference} {waitlist_entry.time_preference}".strip()
+
+    return MCPPayload(
+        booking_code   = waitlist_entry.waitlist_code,
+        call_id        = ctx.call_id,
+        topic_key      = topic_key,
+        topic_label    = f"{topic_label} (Waitlist)",
+        slot_start_iso = placeholder_start.isoformat(),
+        slot_start_ist = f"Waitlist — preferred: {preferred}",
+        slot_end_iso   = placeholder_end.isoformat(),
+        advisor_id     = config.advisor_id,
+        created_at_ist = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST"),
+    )
+
+
 def dispatch_mcp_sync(payload: MCPPayload) -> MCPResults:
     """
     Synchronous wrapper around dispatch_mcp.

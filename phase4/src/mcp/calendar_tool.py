@@ -32,7 +32,7 @@ def _create_hold_sync(payload: MCPPayload) -> dict:
     end_dt   = datetime.fromisoformat(payload.slot_end_iso)
 
     event_body = {
-        "summary": f"[TENTATIVE] {payload.topic_label} — {payload.booking_code}",
+        "summary": f"Advisor Q&A — {payload.topic_label} — {payload.booking_code}",
         "description": (
             f"Pre-booking via Voice Agent\n"
             f"Booking Code : {payload.booking_code}\n"
