@@ -473,6 +473,30 @@ class DialogueFSM:
             ctx.current_state = DialogueState.END
             return ctx, _END_CALL()
 
+        # ── Cross-state intent intercepts ─────────────────────────────────────
+        # what_to_prepare and check_availability are valid at ANY point in the
+        # conversation. Handle them before compliance checks (so out_of_scope
+        # never blocks them) and before state routing (so they work mid-flow).
+
+        if llm_response.intent == "what_to_prepare":
+            # Merge topic if extracted in this turn
+            if not ctx.topic and llm_response.slots.get("topic"):
+                ctx.topic = llm_response.slots["topic"]
+            ctx.intent = "what_to_prepare"
+            if ctx.topic:
+                return self._handle_what_to_prepare(ctx)
+            # Topic unknown — ask, then come back
+            ctx.current_state = DialogueState.INTENT_IDENTIFIED
+            return ctx, _s("prepare_topic_prompt")
+
+        if llm_response.intent == "check_availability":
+            ctx.intent = "check_availability"
+            ctx.apply_slots(llm_response.slots)
+            ctx.current_state = DialogueState.TOPIC_COLLECTED
+            if ctx.day_preference:
+                return self._offer_slots(ctx, llm_response)
+            return ctx, _TIME_PROMPT()
+
         # ── Compliance refusals — stay in same state ──────────────────────────
         # Skip compliance checks in greeting/disclaimer states — any response
         # there is just an acknowledgement to proceed, not truly out-of-scope.
@@ -650,7 +674,9 @@ class DialogueFSM:
             "account_changes": "prepare_account_changes",
         }
         key = _key_map.get(ctx.topic or "", "prepare_general")
-        # Stay in TOPIC_COLLECTED so a "yes" next turn goes to time collection
+        # Reset intent to book_new so if user says "yes" next turn,
+        # _collect_topic flows to time collection instead of looping back here.
+        ctx.intent = "book_new"
         ctx.current_state = DialogueState.TOPIC_COLLECTED
         return ctx, _s(key)
 
