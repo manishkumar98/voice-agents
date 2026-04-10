@@ -29,6 +29,7 @@ except ImportError:
     pass
 
 os.environ["MOCK_CALENDAR_PATH"] = str(_root_dir / "phase1" / "data" / "mock_calendar.json")
+os.environ.setdefault("TTS_PACE", "1.5")
 
 import tempfile
 import streamlit as st
@@ -292,6 +293,7 @@ def _inject_auto_record_js():
             var audios = pdoc.querySelectorAll('audio');
             if (!audios.length) { setTimeout(attachAudio, 200); return; }
             var a = audios[audios.length-1];
+            a.playbackRate = 1.5;
             if (a.ended) { setTimeout(clickMic, 400); return; }
             a.addEventListener('ended', function(){ setTimeout(clickMic, 400); }, {once:true});
         }
