@@ -63,6 +63,7 @@ class DialogueState(Enum):
     CANCEL_CODE_COLLECTED   = "S13"
     ERROR                   = "S14"
     END                     = "S15"
+    CANCEL_CONFIRM          = "S16"   # awaiting yes/no before executing cancel
 
     def is_terminal(self) -> bool:
         return self in (DialogueState.END, DialogueState.ERROR)
@@ -103,6 +104,8 @@ class DialogueContext:
     slots_repeat_count: int = 0       # times the same input was repeated in SLOTS_OFFERED
     last_slots_input: str | None = None  # last user input seen in SLOTS_OFFERED
     topic_retry_count: int = 0        # times topic menu was shown without a valid topic
+    code_retry_count: int = 0         # times booking code prompt shown without a valid code
+    prepare_shown: bool = False        # True after what_to_prepare checklist is shown
 
     # MCP results (Phase 4 will populate)
     calendar_hold_created: bool = False

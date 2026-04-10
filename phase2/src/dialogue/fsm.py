@@ -203,6 +203,38 @@ _STRINGS = {
             "You don't need to share these on this call — bring them to the advisor session. "
             "Would you like to book an appointment?"
         ),
+        "prepare_no_book": (
+            "No problem! Feel free to call back whenever you're ready to book. "
+            "Have a great day!"
+        ),
+        "cancel_confirm": (
+            "Just to confirm — you'd like to cancel booking {code}. "
+            "Say yes to confirm the cancellation, or no to keep it."
+        ),
+        "cancel_done": (
+            "Done. Booking {code} has been cancelled. "
+            "Feel free to call back if you'd like to rebook. Goodbye!"
+        ),
+        "code_max_retries": (
+            "I wasn't able to locate a booking code. "
+            "Please call back with your code handy, or visit our website to manage your booking. "
+            "Goodbye!"
+        ),
+        "avail_no_thanks": (
+            "No problem! You can call back anytime to book a slot. Have a great day!"
+        ),
+        "intent_switch_cancel": (
+            "Sure, let's switch to cancellation. "
+            "Please share the booking code for the appointment you'd like to cancel."
+        ),
+        "intent_switch_reschedule": (
+            "Sure, let's reschedule instead. "
+            "Please share your existing booking code."
+        ),
+        "intent_switch_book": (
+            "Sure, let's book a new appointment. "
+            "What topic would you like to discuss?"
+        ),
     },
     "hi-IN": {
         "greeting": (
@@ -378,6 +410,36 @@ _STRINGS = {
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
+        "prepare_no_book": (
+            "कोई बात नहीं! जब भी बुकिंग करनी हो, दोबारा कॉल करें। आपका दिन शुभ हो!"
+        ),
+        "cancel_confirm": (
+            "पुष्टि करने के लिए — आप बुकिंग {code} रद्द करना चाहते हैं। "
+            "रद्द करने के लिए हाँ कहें, या रखने के लिए ना।"
+        ),
+        "cancel_done": (
+            "हो गया। बुकिंग {code} रद्द कर दी गई है। "
+            "दोबारा बुकिंग करनी हो तो कॉल करें। अलविदा!"
+        ),
+        "code_max_retries": (
+            "मुझे बुकिंग कोड नहीं मिल पाया। "
+            "कृपया कोड के साथ दोबारा कॉल करें। अलविदा!"
+        ),
+        "avail_no_thanks": (
+            "कोई बात नहीं! जब भी स्लॉट बुक करना हो, कॉल करें। आपका दिन शुभ हो!"
+        ),
+        "intent_switch_cancel": (
+            "ज़रूर, आइए कैंसिलेशन करते हैं। "
+            "जिस अपॉइंटमेंट को रद्द करना है उसका बुकिंग कोड बताएं।"
+        ),
+        "intent_switch_reschedule": (
+            "ज़रूर, आइए रिशेड्यूल करते हैं। "
+            "अपना मौजूदा बुकिंग कोड बताएं।"
+        ),
+        "intent_switch_book": (
+            "ज़रूर, नई अपॉइंटमेंट बुक करते हैं। "
+            "आप किस विषय पर चर्चा करना चाहते हैं?"
+        ),
     },
 }
 
@@ -474,9 +536,49 @@ class DialogueFSM:
             return ctx, _END_CALL()
 
         # ── Cross-state intent intercepts ─────────────────────────────────────
-        # what_to_prepare and check_availability are valid at ANY point in the
-        # conversation. Handle them before compliance checks (so out_of_scope
-        # never blocks them) and before state routing (so they work mid-flow).
+        # Five intents are valid at ANY point (after disclaimer is confirmed).
+        # Handled before compliance checks so out_of_scope never blocks them,
+        # and before state routing so they work mid-flow (context jumping).
+
+        _post_disclaimer = ctx.current_state not in (
+            DialogueState.GREETED, DialogueState.DISCLAIMER_CONFIRMED,
+            DialogueState.IDLE, DialogueState.END, DialogueState.ERROR,
+            DialogueState.BOOKING_COMPLETE, DialogueState.WAITLIST_CONFIRMED,
+        )
+
+        # ── Intent switch: cancel ──────────────────────────────────────────────
+        if _post_disclaimer and llm_response.intent == "cancel" and ctx.intent != "cancel":
+            ctx.intent = "cancel"
+            ctx.code_retry_count = 0
+            ctx.current_state = DialogueState.CANCEL_CODE_COLLECTED
+            if llm_response.slots.get("existing_booking_code"):
+                ctx.existing_booking_code = llm_response.slots["existing_booking_code"]
+            if ctx.existing_booking_code:
+                return self._handle_code_flow(ctx, llm_response)
+            return ctx, _s("intent_switch_cancel")
+
+        # ── Intent switch: reschedule ──────────────────────────────────────────
+        if _post_disclaimer and llm_response.intent == "reschedule" and ctx.intent != "reschedule":
+            ctx.intent = "reschedule"
+            ctx.code_retry_count = 0
+            ctx.current_state = DialogueState.RESCHEDULE_CODE_COLLECTED
+            if llm_response.slots.get("existing_booking_code"):
+                ctx.existing_booking_code = llm_response.slots["existing_booking_code"]
+            if ctx.existing_booking_code:
+                return self._handle_code_flow(ctx, llm_response)
+            return ctx, _s("intent_switch_reschedule")
+
+        # ── Intent switch: book_new (while in cancel/reschedule/waitlist) ─────
+        if _post_disclaimer and llm_response.intent == "book_new" and ctx.intent in (
+            "cancel", "reschedule", "check_availability", "what_to_prepare"
+        ):
+            ctx.intent = "book_new"
+            ctx.existing_booking_code = None
+            ctx.code_retry_count = 0
+            ctx.current_state = DialogueState.INTENT_IDENTIFIED
+            # Preserve any topic/time already extracted
+            ctx.apply_slots(llm_response.slots)
+            return self._collect_topic(ctx, llm_response)
 
         if llm_response.intent == "what_to_prepare":
             # Merge topic if extracted in this turn
@@ -582,6 +684,9 @@ class DialogueFSM:
         if state in (DialogueState.RESCHEDULE_CODE_COLLECTED, DialogueState.CANCEL_CODE_COLLECTED):
             return self._handle_code_flow(ctx, llm_response)
 
+        if state == DialogueState.CANCEL_CONFIRM:
+            return self._handle_cancel_confirm(ctx, llm_response)
+
         if state == DialogueState.ERROR:
             ctx.current_state = DialogueState.END
             return ctx, _FAREWELL()
@@ -645,6 +750,14 @@ class DialogueFSM:
             if ctx.intent == "what_to_prepare":
                 return self._handle_what_to_prepare(ctx)
 
+            # If user says "no" after a what_to_prepare checklist — graceful exit
+            if ctx.prepare_shown:
+                ctx.prepare_shown = False
+                _neg = {"no", "nope", "not now", "maybe later", "don't", "not interested", "pass", "bye"}
+                if any(w in (resp.raw_response or "").lower() for w in _neg):
+                    ctx.current_state = DialogueState.END
+                    return ctx, _s("prepare_no_book")
+
             ctx.current_state = DialogueState.TOPIC_COLLECTED
             if ctx.day_preference:
                 return self._offer_slots(ctx, resp)
@@ -677,6 +790,7 @@ class DialogueFSM:
         # Reset intent to book_new so if user says "yes" next turn,
         # _collect_topic flows to time collection instead of looping back here.
         ctx.intent = "book_new"
+        ctx.prepare_shown = True
         ctx.current_state = DialogueState.TOPIC_COLLECTED
         return ctx, _s(key)
 
@@ -943,6 +1057,10 @@ class DialogueFSM:
         # ── Rejection — ask for a different day/time ────────────────────────
         rejection_words = {"neither", "none", "different", "other", "else", "no", "change"}
         if any(w in speech_lower for w in rejection_words) and resp.intent not in ("book_new",):
+            # check_availability: user just wanted to see slots, no obligation to book
+            if ctx.intent == "check_availability":
+                ctx.current_state = DialogueState.END
+                return ctx, _s("avail_no_thanks")
             ctx.current_state = DialogueState.TIME_PREFERENCE_COLLECTED
             ctx.day_preference = None
             ctx.time_preference = None
@@ -1085,48 +1203,71 @@ class DialogueFSM:
     def _handle_code_flow(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S12/S13 — reschedule or cancel by booking code."""
         code = resp.slots.get("existing_booking_code") or ctx.existing_booking_code
+
         if not code:
+            ctx.code_retry_count += 1
+            if ctx.code_retry_count >= 3:
+                ctx.current_state = DialogueState.END
+                return ctx, _s("code_max_retries")
             return ctx, _s("code_not_found")
 
         ctx.existing_booking_code = code
+        ctx.code_retry_count = 0
+
         if ctx.current_state == DialogueState.CANCEL_CODE_COLLECTED:
-            # On confirmed cancel: free the slot and promote the next person in queue
-            from src.booking.waitlist_queue import get_global_queue
-            from src.booking.slot_resolver import resolve_slots
-            queue = get_global_queue()
-            promotion_note = ""
-            # Try to find the slot that was held for this booking (if resolved_slot stored)
-            if ctx.resolved_slot:
-                try:
-                    calendar_path = os.environ.get("MOCK_CALENDAR_PATH", "data/mock_calendar.json")
-                    freed_slots = resolve_slots(
-                        day_preference="this week",
-                        time_preference="any",
-                        topic=ctx.topic,
-                        calendar_path=calendar_path,
-                        max_results=10,
-                    )
-                    for freed_slot in freed_slots:
-                        result = queue.on_cancellation(freed_slot)
-                        if result:
-                            promotion_note = (
-                                f" The next person on our waitlist (position {result.position_was}) "
-                                f"will be notified about the opening."
-                            )
-                            break
-                except Exception:
-                    pass  # Promotion is best-effort — don't block the cancel
-            ctx.current_state = DialogueState.END
-            return ctx, (
-                f"Your booking {code} has been cancelled.{promotion_note} "
-                f"Feel free to call back if you'd like to rebook. Goodbye!"
-            )
-        # Reschedule
+            # Ask for confirmation before actually cancelling
+            ctx.current_state = DialogueState.CANCEL_CONFIRM
+            return ctx, _s("cancel_confirm").format(code=code)
+
+        # Reschedule — no confirmation needed, just find new slot
         ctx.current_state = DialogueState.TIME_PREFERENCE_COLLECTED
         return ctx, (
             f"I found your booking {code}. "
             f"What new day and time works for you?"
         )
+
+    def _handle_cancel_confirm(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
+        """S16 — user confirms or declines the cancel."""
+        speech_lower = (resp.speech + " " + (resp.raw_response or "")).lower()
+        positive = {"yes", "confirm", "go ahead", "cancel it", "sure", "yep", "ok", "okay", "do it"}
+        negative = {"no", "nope", "keep", "don't", "never mind", "keep it", "changed my mind"}
+
+        code = ctx.existing_booking_code or ""
+
+        if any(w in speech_lower for w in positive):
+            # Execute the cancellation
+            from src.booking.waitlist_queue import get_global_queue
+            from src.booking.slot_resolver import resolve_slots
+            queue = get_global_queue()
+            promotion_note = ""
+            if ctx.resolved_slot:
+                try:
+                    calendar_path = os.environ.get("MOCK_CALENDAR_PATH", "data/mock_calendar.json")
+                    freed_slots = resolve_slots(
+                        day_preference="this week", time_preference="any",
+                        topic=ctx.topic, calendar_path=calendar_path, max_results=10,
+                    )
+                    for freed_slot in freed_slots:
+                        result = queue.on_cancellation(freed_slot)
+                        if result:
+                            promotion_note = (
+                                f" The next person on our waitlist will be notified about the opening."
+                            )
+                            break
+                except Exception:
+                    pass
+            ctx.current_state = DialogueState.END
+            return ctx, _s("cancel_done").format(code=code) + promotion_note
+
+        if any(w in speech_lower for w in negative):
+            # Keep the booking — offer to do something else
+            ctx.current_state = DialogueState.DISCLAIMER_CONFIRMED
+            ctx.intent = None
+            ctx.existing_booking_code = None
+            return ctx, "No problem, your booking is kept. Is there anything else I can help you with?"
+
+        # Ambiguous — re-ask
+        return ctx, _s("cancel_confirm").format(code=code)
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1144,5 +1285,6 @@ class DialogueFSM:
             DialogueState.SLOTS_OFFERED:        "Which slot would you prefer?",
             DialogueState.SLOT_CONFIRMED:       "Can you confirm the booking?",
             DialogueState.WAITLIST_OFFERED:     "Would you like to join the waitlist?",
+            DialogueState.CANCEL_CONFIRM:       "Say yes to confirm the cancellation, or no to keep it.",
         }
         return prompts.get(ctx.current_state, "Sorry, I didn't catch that. Could you repeat?")
