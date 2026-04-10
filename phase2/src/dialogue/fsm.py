@@ -26,11 +26,16 @@ _STRINGS = {
     "en-IN": {
         "greeting": (
             "Hello! I'm the Advisor Scheduling assistant. "
-            "I'll help you book a consultation in about two minutes."
+            "I can help you book a consultation with a financial advisor for topics like "
+            "KYC and onboarding, SIP and mandates, statements and tax documents, "
+            "withdrawals, or account changes and nominee updates. "
+            "I can also reschedule or cancel an existing appointment, "
+            "check available slots, or tell you what to prepare before your session."
         ),
         "disclaimer": (
-            "Quick note: this service is for scheduling only. "
-            "Our advisors provide informational guidance, not investment advice. "
+            "Quick note before we begin: our advisors provide informational guidance only — "
+            "not investment advice as defined under SEBI regulations. "
+            "No personal details like phone number or account number are collected on this call. "
             "Shall we continue?"
         ),
         "topic_prompt": (
@@ -239,11 +244,17 @@ _STRINGS = {
     "hi-IN": {
         "greeting": (
             "नमस्ते! मैं Advisor Scheduling सहायक हूँ। "
-            "मैं आपकी लगभग दो मिनट में एक परामर्श बुक करने में मदद करूँगा।"
+            "मैं आपकी एक वित्तीय सलाहकार के साथ परामर्श बुक करने में मदद कर सकता हूँ — "
+            "KYC और ऑनबोर्डिंग, SIP और मैंडेट, स्टेटमेंट और टैक्स, "
+            "निकासी, या खाते में बदलाव जैसे विषयों के लिए। "
+            "साथ ही मौजूदा अपॉइंटमेंट रिशेड्यूल या कैंसिल करना, "
+            "उपलब्ध स्लॉट देखना, या सेशन की तैयारी के बारे में जानकारी लेना — "
+            "ये सब भी हो सकता है।"
         ),
         "disclaimer": (
-            "एक छोटी सी जानकारी: यह सेवा केवल अपॉइंटमेंट शेड्यूलिंग के लिए है। "
-            "हमारे सलाहकार मार्गदर्शन देते हैं, निवेश सलाह नहीं। "
+            "शुरू करने से पहले एक जानकारी: हमारे सलाहकार केवल जानकारी देते हैं — "
+            "SEBI नियमों के अंतर्गत निवेश सलाह नहीं। "
+            "इस कॉल पर फ़ोन नंबर या खाता नंबर जैसी कोई व्यक्तिगत जानकारी नहीं ली जाती। "
             "क्या हम आगे बढ़ें?"
         ),
         "topic_prompt": (
