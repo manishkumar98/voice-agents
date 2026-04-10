@@ -328,6 +328,111 @@ def _init_state():
 
 _init_state()
 
+# ── Contact Details Form (secure URL landing page) ─────────────────────────
+_booking_token = st.query_params.get("booking_token", "")
+if _booking_token:
+    sys.path.insert(0, str(_root_dir / "phase1"))
+    from src.booking.secure_url_generator import verify_secure_url
+    from src.dialogue.states import TOPIC_LABELS
+
+    st.markdown("""
+    <style>
+    .form-card {
+        background:white; border:1.5px solid #ddd6fe; border-radius:20px;
+        padding:32px 36px; max-width:500px; margin:40px auto;
+        box-shadow:0 8px 32px rgba(109,40,217,0.10);
+    }
+    .form-title { font-size:1.5rem; font-weight:800; color:#3b0764; margin-bottom:6px; }
+    .form-sub   { color:#7c6fb0; font-size:0.93rem; margin-bottom:24px; }
+    .booking-pill {
+        display:inline-block; background:#ede9fe; color:#6d28d9;
+        padding:4px 14px; border-radius:20px; font-weight:700;
+        font-size:0.95rem; margin-bottom:16px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    try:
+        payload = verify_secure_url(_booking_token)
+        booking_code = payload.get("booking_code", "")
+        topic_key    = payload.get("topic", "")
+        slot_ist     = payload.get("slot_ist", "")
+        topic_label  = TOPIC_LABELS.get(topic_key, topic_key.replace("_", " ").title())
+
+        _, fc, _ = st.columns([1, 4, 1])
+        with fc:
+            st.markdown(f"""
+            <div class="form-card">
+              <div class="form-title">📋 Complete Your Booking</div>
+              <div class="form-sub">Submit your contact details to receive an appointment confirmation email.</div>
+              <div class="booking-pill">🔖 {booking_code}</div>
+              <p style="color:#374151;font-size:0.93rem;margin-bottom:20px;">
+                <b>Topic:</b> {topic_label}<br>
+                <b>Slot:</b> {slot_ist} <span style="color:#7c3aed">(IST)</span>
+              </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.form("contact_form"):
+                name  = st.text_input("Full Name *", placeholder="e.g. Rahul Sharma")
+                email = st.text_input("Email Address *", placeholder="you@example.com")
+                phone = st.text_input("Phone Number *", placeholder="e.g. 9876543210")
+                consent = st.checkbox(
+                    "I consent to receive an appointment confirmation email at the address above."
+                )
+                submitted = st.form_submit_button("✅ Submit & Get Confirmation Email", type="primary", use_container_width=True)
+
+            if submitted:
+                errors = []
+                if not name.strip():
+                    errors.append("Name is required.")
+                if not email.strip() or "@" not in email:
+                    errors.append("A valid email address is required.")
+                if not phone.strip():
+                    errors.append("Phone number is required.")
+                if not consent:
+                    errors.append("Please tick the consent checkbox to receive the email.")
+
+                if errors:
+                    for e in errors:
+                        st.error(e)
+                else:
+                    try:
+                        sys.path.insert(0, str(_root_dir / "phase4"))
+                        from src.mcp.email_tool import send_user_confirmation
+                        send_user_confirmation(
+                            to_name     = name.strip(),
+                            to_email    = email.strip(),
+                            booking_code= booking_code,
+                            topic_label = topic_label,
+                            slot_ist    = slot_ist,
+                        )
+                        st.success(
+                            f"✅ Confirmation email sent to **{email.strip()}**. "
+                            f"Please check your inbox (and spam folder)."
+                        )
+                        st.markdown(f"""
+                        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;
+                                    padding:16px 20px;margin-top:12px;">
+                          <div style="font-weight:700;color:#065f46;margin-bottom:4px;">Booking Summary</div>
+                          <div style="color:#047857;font-size:0.93rem;">
+                            📌 Code: <b>{booking_code}</b><br>
+                            📚 Topic: {topic_label}<br>
+                            🕐 Slot: {slot_ist} (IST)<br>
+                            👤 Name: {name.strip()}<br>
+                            📧 Email: {email.strip()}<br>
+                            📞 Phone: {phone.strip()}
+                          </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    except Exception as exc:
+                        st.error(f"Could not send email: {exc}. Please try again or contact support.")
+
+    except Exception:
+        st.error("⚠️ This link has expired or is invalid. Please call again to get a new booking link.")
+
+    st.stop()
+
 # ── Top Navbar (always visible) ────────────────────────────────────────────
 
 st.markdown("""
@@ -446,10 +551,12 @@ with main_col:
     # ── Booking complete ───────────────────────────────────────────────────
     if ctx and ctx.current_state.name == "BOOKING_COMPLETE":
         _render_chat(_history)
+        _secure_url = ctx.secure_url or ""
         st.markdown(f"""
         <div class="booking-card">
-          <div style="font-size:1.2rem;font-weight:700;color:#065f46;margin-bottom:4px;">✅ Booking Confirmed</div>
-          <div style="color:#047857;">Code: <code style="background:#bbf7d0;padding:2px 8px;border-radius:6px;">{ctx.booking_code}</code></div>
+          <div style="font-size:1.2rem;font-weight:700;color:#065f46;margin-bottom:8px;">✅ Booking Confirmed</div>
+          <div style="color:#047857;margin-bottom:8px;">Code: <code style="background:#bbf7d0;padding:2px 8px;border-radius:6px;">{ctx.booking_code}</code></div>
+          {"" if not _secure_url else f'<div style="margin-top:8px;font-size:0.9rem;color:#374151;">📎 Submit your contact details to receive a confirmation email:<br><a href="{_secure_url}" target="_blank" style="color:#6d28d9;font-weight:600;word-break:break-all;">{_secure_url}</a></div>'}
         </div>""", unsafe_allow_html=True)
         mcp = st.session_state.p5_mcp
         if mcp:

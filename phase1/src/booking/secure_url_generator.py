@@ -71,7 +71,7 @@ def generate_secure_url(
     serializer = _get_serializer(secret)
     token = serializer.dumps(payload)
     domain = domain.rstrip("/")
-    return f"{domain}/book/{token}"
+    return f"{domain}/?booking_token={token}"
 
 
 def verify_secure_url(
@@ -110,7 +110,11 @@ def verify_secure_url(
 
 def extract_token_from_url(url: str) -> str:
     """Extract the token portion from a full secure URL."""
+    # Support query-param format: ?booking_token=TOKEN
+    if "booking_token=" in url:
+        return url.split("booking_token=", 1)[1].split("&")[0]
+    # Legacy path format: /book/TOKEN
     parts = url.rstrip("/").split("/book/")
     if len(parts) != 2:
-        raise ValueError(f"URL does not contain '/book/' path segment: {url}")
+        raise ValueError(f"URL does not contain booking_token param or '/book/' path: {url}")
     return parts[1]

@@ -1,12 +1,14 @@
 """
-Phase 4 — Gmail draft tool.
-Saves a pre-booking approval email to the Gmail Drafts folder via IMAP APPEND.
-The advisor receives it in Drafts; they review and click Send manually.
+Phase 4 — Gmail email tools.
+
+draft_approval_email   — saves advisor approval email to Gmail Drafts (IMAP APPEND)
+send_user_confirmation — actually sends a confirmation email to the user via SMTP
 """
 from __future__ import annotations
 
 import asyncio
 import imaplib
+import smtplib
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -105,6 +107,81 @@ def _create_draft_sync(payload: MCPPayload, event_id: str | None) -> dict:
         draft_uid = data[0].decode("utf-8") if data and data[0] else "unknown"
 
     return {"draft_id": draft_uid, "to": config.advisor_email}
+
+
+def _user_confirmation_html(name: str, booking_code: str, topic_label: str, slot_ist: str) -> str:
+    return f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto">
+<div style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);padding:28px 32px;border-radius:12px 12px 0 0">
+  <h2 style="color:white;margin:0">📅 Appointment Confirmed</h2>
+  <p style="color:#ede9fe;margin:6px 0 0">Advisor Scheduling — Booking Details</p>
+</div>
+<div style="background:#ffffff;border:1px solid #ede9fe;border-radius:0 0 12px 12px;padding:28px 32px">
+  <p>Dear <strong>{name}</strong>,</p>
+  <p>Your advisor appointment has been tentatively confirmed. Here are your details:</p>
+  <table style="border-collapse:collapse;width:100%;margin:16px 0">
+    <tr style="background:#f5f3ff">
+      <td style="padding:10px 14px;border:1px solid #ede9fe;font-weight:600">Booking Code</td>
+      <td style="padding:10px 14px;border:1px solid #ede9fe">
+        <span style="background:#ede9fe;color:#6d28d9;padding:3px 10px;border-radius:6px;font-weight:700;font-size:1.05em">{booking_code}</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 14px;border:1px solid #ede9fe;font-weight:600">Topic</td>
+      <td style="padding:10px 14px;border:1px solid #ede9fe">{topic_label}</td>
+    </tr>
+    <tr style="background:#f5f3ff">
+      <td style="padding:10px 14px;border:1px solid #ede9fe;font-weight:600">Date &amp; Time</td>
+      <td style="padding:10px 14px;border:1px solid #ede9fe">{slot_ist} <span style="color:#7c3aed;font-size:0.88em">(IST)</span></td>
+    </tr>
+  </table>
+  <p style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:0.92em">
+    ⚠️ This is a <strong>tentative hold</strong>. An advisor will reach out to confirm.
+    No investment advice will be provided — this is an informational consultation only.
+  </p>
+  <p style="color:#6b7280;font-size:0.85em;margin-top:20px">
+    If you did not request this booking, please ignore this email.<br>
+    To reschedule or cancel, call us and quote your booking code.
+  </p>
+</div>
+</body></html>"""
+
+
+def send_user_confirmation(
+    to_name: str,
+    to_email: str,
+    booking_code: str,
+    topic_label: str,
+    slot_ist: str,
+) -> dict:
+    """
+    Send an appointment confirmation email directly to the user via SMTP.
+    Called after the user submits their contact details on the secure URL form.
+    """
+    msg = MIMEMultipart("alternative")
+    msg["From"]    = f"AdvisorBot <{config.gmail_address}>"
+    msg["To"]      = to_email
+    msg["Subject"] = f"Appointment Confirmed — {booking_code} | {topic_label}"
+
+    plain = (
+        f"Dear {to_name},\n\n"
+        f"Your advisor appointment is tentatively confirmed.\n\n"
+        f"Booking Code : {booking_code}\n"
+        f"Topic        : {topic_label}\n"
+        f"Date & Time  : {slot_ist} (IST)\n\n"
+        f"An advisor will reach out to confirm. This is an informational consultation only.\n\n"
+        f"To reschedule or cancel, call us and quote your booking code.\n"
+    )
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(_user_confirmation_html(to_name, booking_code, topic_label, slot_ist), "html"))
+
+    with smtplib.SMTP(config.gmail_smtp_host, config.gmail_smtp_port) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(config.gmail_address, config.gmail_app_password)
+        smtp.sendmail(config.gmail_address, to_email, msg.as_bytes())
+
+    return {"to": to_email, "booking_code": booking_code}
 
 
 async def draft_approval_email(payload: MCPPayload, event_id: str | None = None) -> ToolResult:
