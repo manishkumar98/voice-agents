@@ -332,104 +332,207 @@ _init_state()
 _booking_token = st.query_params.get("booking_token", "")
 if _booking_token:
     sys.path.insert(0, str(_root_dir / "phase1"))
-    from src.booking.secure_url_generator import verify_secure_url
-    from src.dialogue.states import TOPIC_LABELS
+    sys.path.insert(0, str(_root_dir / "phase4"))
 
     st.markdown("""
     <style>
-    .form-card {
-        background:white; border:1.5px solid #ddd6fe; border-radius:20px;
-        padding:32px 36px; max-width:500px; margin:40px auto;
-        box-shadow:0 8px 32px rgba(109,40,217,0.10);
+    .cf-page {
+        min-height: 100vh;
+        background: linear-gradient(160deg, #f3eeff 0%, #ebe6ff 30%, #dde8ff 70%, #d0e9f9 100%);
+        display: flex; flex-direction: column; align-items: center;
+        padding: 0 0 60px;
     }
-    .form-title { font-size:1.5rem; font-weight:800; color:#3b0764; margin-bottom:6px; }
-    .form-sub   { color:#7c6fb0; font-size:0.93rem; margin-bottom:24px; }
-    .booking-pill {
-        display:inline-block; background:#ede9fe; color:#6d28d9;
-        padding:4px 14px; border-radius:20px; font-weight:700;
-        font-size:0.95rem; margin-bottom:16px;
+    .cf-topbar {
+        width: 100%; background: rgba(255,255,255,0.88);
+        backdrop-filter: blur(16px); border-bottom: 1px solid #ddd6fe;
+        padding: 14px 32px; display: flex; align-items: center; gap: 12px;
+        margin-bottom: 40px;
     }
+    .cf-logo { width:36px;height:36px;border-radius:10px;
+        background:linear-gradient(135deg,#8b5cf6,#6d28d9);
+        display:flex;align-items:center;justify-content:center;font-size:18px; }
+    .cf-brand { font-weight:700;font-size:1rem;color:#1e1b4b; }
+    .cf-sub   { font-size:0.75rem;color:#7c3aed; }
+    .cf-card {
+        background: white; border: 1.5px solid #ddd6fe;
+        border-radius: 24px; padding: 36px 40px;
+        box-shadow: 0 12px 40px rgba(109,40,217,0.10);
+        width: 100%; max-width: 480px;
+    }
+    .cf-header { text-align:center; margin-bottom: 28px; }
+    .cf-icon { font-size: 3rem; margin-bottom: 10px; }
+    .cf-title { font-size:1.55rem; font-weight:800; color:#3b0764; margin-bottom:6px; }
+    .cf-desc  { color:#7c6fb0; font-size:0.92rem; line-height:1.5; }
+    .cf-booking-strip {
+        background: linear-gradient(135deg,#f5f3ff,#ede9fe);
+        border: 1px solid #c4b5fd; border-radius: 14px;
+        padding: 14px 18px; margin-bottom: 24px;
+        display: flex; flex-direction:column; gap:4px;
+    }
+    .cf-code { font-size:1.2rem;font-weight:800;color:#6d28d9;letter-spacing:2px; }
+    .cf-meta { font-size:0.85rem;color:#5b21b6; }
+    .cf-divider { border:none;border-top:1.5px solid #ede9fe;margin:20px 0; }
+    .cf-success {
+        text-align:center; padding: 12px 0 4px;
+    }
+    .cf-success-icon { font-size:4rem; margin-bottom:12px; }
+    .cf-success-title { font-size:1.4rem;font-weight:800;color:#065f46;margin-bottom:8px; }
+    .cf-success-desc  { color:#047857;font-size:0.92rem;line-height:1.6; }
+    .cf-summary {
+        background:#f0fdf4;border:1.5px solid #86efac;
+        border-radius:14px;padding:16px 20px;margin-top:20px;text-align:left;
+    }
+    .cf-summary-row { display:flex;gap:10px;margin-bottom:6px;font-size:0.88rem;color:#065f46; }
+    .cf-summary-label { font-weight:600;min-width:60px; }
+    @keyframes cf-pop {
+        0%   { opacity:0; transform:scale(0.85) translateY(20px); }
+        60%  { transform:scale(1.04) translateY(-4px); }
+        100% { opacity:1; transform:scale(1) translateY(0); }
+    }
+    .cf-animate { animation: cf-pop 0.55s ease forwards; }
     </style>
     """, unsafe_allow_html=True)
 
-    try:
-        payload = verify_secure_url(_booking_token)
-        booking_code = payload.get("booking_code", "")
-        topic_key    = payload.get("topic", "")
-        slot_ist     = payload.get("slot_ist", "")
-        topic_label  = TOPIC_LABELS.get(topic_key, topic_key.replace("_", " ").title())
+    # session keys scoped to this token
+    _sk_done  = f"cf_done_{_booking_token[:12]}"
+    _sk_name  = f"cf_name_{_booking_token[:12]}"
+    _sk_email = f"cf_email_{_booking_token[:12]}"
+    _sk_phone = f"cf_phone_{_booking_token[:12]}"
+    _sk_err   = f"cf_err_{_booking_token[:12]}"
 
-        _, fc, _ = st.columns([1, 4, 1])
-        with fc:
-            st.markdown(f"""
-            <div class="form-card">
-              <div class="form-title">📋 Complete Your Booking</div>
-              <div class="form-sub">Submit your contact details to receive an appointment confirmation email.</div>
-              <div class="booking-pill">🔖 {booking_code}</div>
-              <p style="color:#374151;font-size:0.93rem;margin-bottom:20px;">
-                <b>Topic:</b> {topic_label}<br>
-                <b>Slot:</b> {slot_ist} <span style="color:#7c3aed">(IST)</span>
-              </p>
+    # Topbar
+    st.markdown("""
+    <div class="cf-topbar">
+      <div class="cf-logo">📞</div>
+      <div>
+        <div class="cf-brand">AdvisorBot</div>
+        <div class="cf-sub">Appointment Scheduling</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _, fc, _ = st.columns([1, 5, 1])
+    with fc:
+        try:
+            from src.booking.secure_url_generator import verify_secure_url
+            from src.dialogue.states import TOPIC_LABELS
+            payload     = verify_secure_url(_booking_token)
+            booking_code= payload.get("booking_code", "")
+            topic_key   = payload.get("topic", "")
+            slot_ist    = payload.get("slot_ist", "")
+            topic_label = TOPIC_LABELS.get(topic_key, topic_key.replace("_", " ").title())
+
+            # ── SUCCESS STATE ──────────────────────────────────────────────
+            if st.session_state.get(_sk_done):
+                _sent_email = st.session_state.get(_sk_email, "")
+                _sent_name  = st.session_state.get(_sk_name, "")
+                _sent_phone = st.session_state.get(_sk_phone, "")
+                st.markdown(f"""
+                <div class="cf-card cf-animate">
+                  <div class="cf-success">
+                    <div class="cf-success-icon">🎉</div>
+                    <div class="cf-success-title">All Done!</div>
+                    <div class="cf-success-desc">
+                      A confirmation email has been sent to<br>
+                      <strong>{_sent_email}</strong>.<br><br>
+                      Please check your inbox (and spam folder).
+                    </div>
+                  </div>
+                  <div class="cf-summary">
+                    <div class="cf-summary-row"><span class="cf-summary-label">📌 Code</span><b>{booking_code}</b></div>
+                    <div class="cf-summary-row"><span class="cf-summary-label">📚 Topic</span>{topic_label}</div>
+                    <div class="cf-summary-row"><span class="cf-summary-label">🕐 Slot</span>{slot_ist} (IST)</div>
+                    <div class="cf-summary-row"><span class="cf-summary-label">👤 Name</span>{_sent_name}</div>
+                    <div class="cf-summary-row"><span class="cf-summary-label">📧 Email</span>{_sent_email}</div>
+                    <div class="cf-summary-row"><span class="cf-summary-label">📞 Phone</span>{_sent_phone}</div>
+                  </div>
+                  <p style="text-align:center;color:#9ca3af;font-size:0.8rem;margin-top:20px;">
+                    An advisor will reach out to confirm your appointment.<br>
+                    To reschedule or cancel, call us and quote your booking code.
+                  </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # ── FORM STATE ─────────────────────────────────────────────────
+            else:
+                # Booking strip
+                st.markdown(f"""
+                <div class="cf-card">
+                  <div class="cf-header">
+                    <div class="cf-icon">📋</div>
+                    <div class="cf-title">Complete Your Booking</div>
+                    <div class="cf-desc">Enter your contact details below.<br>
+                    You'll receive a confirmation email once you submit.</div>
+                  </div>
+                  <div class="cf-booking-strip">
+                    <div class="cf-code">🔖 {booking_code}</div>
+                    <div class="cf-meta">📚 {topic_label}</div>
+                    <div class="cf-meta">🕐 {slot_ist} (IST)</div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Show previous errors if any
+                if st.session_state.get(_sk_err):
+                    for e in st.session_state[_sk_err]:
+                        st.error(e)
+                    st.session_state[_sk_err] = []
+
+                with st.form("contact_form", clear_on_submit=False):
+                    name    = st.text_input("Full Name", placeholder="e.g. Rahul Sharma")
+                    email   = st.text_input("Email Address", placeholder="you@example.com")
+                    phone   = st.text_input("Phone Number", placeholder="e.g. 9876543210")
+                    consent = st.checkbox(
+                        "I agree to receive an appointment confirmation email at the address above."
+                    )
+                    submitted = st.form_submit_button(
+                        "Send Confirmation Email",
+                        type="primary",
+                        use_container_width=True,
+                    )
+
+                if submitted:
+                    errors = []
+                    if not name.strip():
+                        errors.append("Name is required.")
+                    if not email.strip() or "@" not in email:
+                        errors.append("Enter a valid email address.")
+                    if not phone.strip():
+                        errors.append("Phone number is required.")
+                    if not consent:
+                        errors.append("Please tick the consent checkbox to receive the confirmation email.")
+
+                    if errors:
+                        st.session_state[_sk_err] = errors
+                        st.rerun()
+                    else:
+                        with st.spinner("Sending confirmation email…"):
+                            try:
+                                from src.mcp.email_tool import send_user_confirmation
+                                send_user_confirmation(
+                                    to_name     = name.strip(),
+                                    to_email    = email.strip(),
+                                    booking_code= booking_code,
+                                    topic_label = topic_label,
+                                    slot_ist    = slot_ist,
+                                )
+                                st.session_state[_sk_done]  = True
+                                st.session_state[_sk_name]  = name.strip()
+                                st.session_state[_sk_email] = email.strip()
+                                st.session_state[_sk_phone] = phone.strip()
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(f"Could not send email: {exc}. Please try again.")
+
+        except Exception:
+            st.markdown("""
+            <div class="cf-card" style="text-align:center;padding:48px 32px;">
+              <div style="font-size:3rem;margin-bottom:16px;">⏰</div>
+              <div style="font-size:1.2rem;font-weight:700;color:#7f1d1d;margin-bottom:8px;">Link Expired or Invalid</div>
+              <div style="color:#9ca3af;font-size:0.9rem;">This secure link has expired (24-hour TTL) or is no longer valid.<br>
+              Please call us again to receive a new booking link.</div>
             </div>
             """, unsafe_allow_html=True)
-
-            with st.form("contact_form"):
-                name  = st.text_input("Full Name *", placeholder="e.g. Rahul Sharma")
-                email = st.text_input("Email Address *", placeholder="you@example.com")
-                phone = st.text_input("Phone Number *", placeholder="e.g. 9876543210")
-                consent = st.checkbox(
-                    "I consent to receive an appointment confirmation email at the address above."
-                )
-                submitted = st.form_submit_button("✅ Submit & Get Confirmation Email", type="primary", use_container_width=True)
-
-            if submitted:
-                errors = []
-                if not name.strip():
-                    errors.append("Name is required.")
-                if not email.strip() or "@" not in email:
-                    errors.append("A valid email address is required.")
-                if not phone.strip():
-                    errors.append("Phone number is required.")
-                if not consent:
-                    errors.append("Please tick the consent checkbox to receive the email.")
-
-                if errors:
-                    for e in errors:
-                        st.error(e)
-                else:
-                    try:
-                        sys.path.insert(0, str(_root_dir / "phase4"))
-                        from src.mcp.email_tool import send_user_confirmation
-                        send_user_confirmation(
-                            to_name     = name.strip(),
-                            to_email    = email.strip(),
-                            booking_code= booking_code,
-                            topic_label = topic_label,
-                            slot_ist    = slot_ist,
-                        )
-                        st.success(
-                            f"✅ Confirmation email sent to **{email.strip()}**. "
-                            f"Please check your inbox (and spam folder)."
-                        )
-                        st.markdown(f"""
-                        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;
-                                    padding:16px 20px;margin-top:12px;">
-                          <div style="font-weight:700;color:#065f46;margin-bottom:4px;">Booking Summary</div>
-                          <div style="color:#047857;font-size:0.93rem;">
-                            📌 Code: <b>{booking_code}</b><br>
-                            📚 Topic: {topic_label}<br>
-                            🕐 Slot: {slot_ist} (IST)<br>
-                            👤 Name: {name.strip()}<br>
-                            📧 Email: {email.strip()}<br>
-                            📞 Phone: {phone.strip()}
-                          </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    except Exception as exc:
-                        st.error(f"Could not send email: {exc}. Please try again or contact support.")
-
-    except Exception:
-        st.error("⚠️ This link has expired or is invalid. Please call again to get a new booking link.")
 
     st.stop()
 
