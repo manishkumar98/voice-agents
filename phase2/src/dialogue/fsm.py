@@ -145,6 +145,64 @@ _STRINGS = {
             "No problem. What other day and time works for you? "
             "Or I can add you to the waitlist for your original preference."
         ),
+        "avail_suffix": " Would you like to book one of these slots?",
+        "prepare_topic_prompt": (
+            "Sure! Which topic is your appointment for? "
+            "KYC and onboarding, SIP and mandates, statements and tax documents, "
+            "withdrawals and timelines, or account changes?"
+        ),
+        "prepare_kyc_onboarding": (
+            "For a KYC and Onboarding session, please keep the following ready: "
+            "a government-issued photo ID — Aadhaar card, PAN card, or passport; "
+            "an address proof such as a utility bill or bank statement; "
+            "a cancelled cheque or recent bank statement for account linking; "
+            "and your existing account or folio details if you have any. "
+            "You don't need to share these on this call — "
+            "bring them to the advisor session. "
+            "Would you like to book an appointment?"
+        ),
+        "prepare_sip_mandates": (
+            "For a SIP and Mandates session, please keep ready: "
+            "your bank account number and IFSC code for mandate setup; "
+            "your existing folio or portfolio number if applicable; "
+            "and the SIP amount and frequency you have in mind. "
+            "You don't need to share these on this call — "
+            "bring them to the advisor session. "
+            "Would you like to book an appointment?"
+        ),
+        "prepare_statements_tax": (
+            "For a Statements and Tax Documents session, please keep ready: "
+            "your PAN card; "
+            "your broker or fund house login credentials or account number; "
+            "and the financial year or date range you need statements for. "
+            "You don't need to share these on this call — "
+            "bring them to the advisor session. "
+            "Would you like to book an appointment?"
+        ),
+        "prepare_withdrawals": (
+            "For a Withdrawals and Timelines session, please keep ready: "
+            "your folio number or account details; "
+            "your bank account details for redemption credit; "
+            "and any specific fund or amount you wish to withdraw. "
+            "You don't need to share these on this call — "
+            "bring them to the advisor session. "
+            "Would you like to book an appointment?"
+        ),
+        "prepare_account_changes": (
+            "For an Account Changes and Nominee Updates session, please keep ready: "
+            "a government-issued photo ID; "
+            "your existing account or folio number; "
+            "nominee details including name, date of birth, and relationship; "
+            "and supporting documents for any name or address change. "
+            "You don't need to share these on this call — "
+            "bring them to the advisor session. "
+            "Would you like to book an appointment?"
+        ),
+        "prepare_general": (
+            "Please keep your account details, a valid photo ID, and any relevant documents ready. "
+            "You don't need to share these on this call — bring them to the advisor session. "
+            "Would you like to book an appointment?"
+        ),
     },
     "hi-IN": {
         "greeting": (
@@ -266,6 +324,59 @@ _STRINGS = {
         "slots_new_day": (
             "कोई बात नहीं। आपके लिए कौन सा अन्य दिन और समय ठीक रहेगा? "
             "या मैं आपको वेटलिस्ट में जोड़ सकता हूँ।"
+        ),
+        "avail_suffix": " क्या आप इनमें से कोई स्लॉट बुक करना चाहेंगे?",
+        "prepare_topic_prompt": (
+            "ज़रूर! आपकी अपॉइंटमेंट किस विषय के लिए है? "
+            "KYC और ऑनबोर्डिंग, SIP और मैंडेट, स्टेटमेंट और टैक्स, "
+            "निकासी, या खाता बदलाव?"
+        ),
+        "prepare_kyc_onboarding": (
+            "KYC और ऑनबोर्डिंग सेशन के लिए, कृपया ये तैयार रखें: "
+            "सरकारी फ़ोटो ID — आधार कार्ड, PAN कार्ड, या पासपोर्ट; "
+            "पते का प्रमाण जैसे बिजली बिल या बैंक स्टेटमेंट; "
+            "एक कैंसल चेक या हालिया बैंक स्टेटमेंट; "
+            "और यदि हो तो मौजूदा खाता या फ़ोलियो नंबर। "
+            "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
+            "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+        ),
+        "prepare_sip_mandates": (
+            "SIP और मैंडेट सेशन के लिए, कृपया ये तैयार रखें: "
+            "बैंक खाता नंबर और IFSC कोड; "
+            "मौजूदा फ़ोलियो या पोर्टफ़ोलियो नंबर यदि हो; "
+            "और जो SIP राशि और अवधि आपके मन में है। "
+            "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
+            "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+        ),
+        "prepare_statements_tax": (
+            "स्टेटमेंट और टैक्स दस्तावेज़ सेशन के लिए, कृपया ये तैयार रखें: "
+            "PAN कार्ड; "
+            "ब्रोकर या फंड हाउस लॉगिन या खाता नंबर; "
+            "और जिस वित्त वर्ष या तारीख का स्टेटमेंट चाहिए। "
+            "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
+            "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+        ),
+        "prepare_withdrawals": (
+            "निकासी और टाइमलाइन सेशन के लिए, कृपया ये तैयार रखें: "
+            "फ़ोलियो नंबर या खाता विवरण; "
+            "रिडेम्पशन के लिए बैंक खाता विवरण; "
+            "और जो फंड या राशि निकालनी है उसकी जानकारी। "
+            "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
+            "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+        ),
+        "prepare_account_changes": (
+            "खाता बदलाव और नॉमिनी अपडेट सेशन के लिए, कृपया ये तैयार रखें: "
+            "सरकारी फ़ोटो ID; "
+            "मौजूदा खाता या फ़ोलियो नंबर; "
+            "नॉमिनी की जानकारी — नाम, जन्मतिथि, रिश्ता; "
+            "और नाम या पते के बदलाव के लिए सहायक दस्तावेज़। "
+            "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
+            "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+        ),
+        "prepare_general": (
+            "कृपया अपना खाता विवरण, एक वैध फ़ोटो ID, और संबंधित दस्तावेज़ तैयार रखें। "
+            "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
+            "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
     },
 }
@@ -490,18 +601,26 @@ class DialogueFSM:
         return ctx, _TOPIC_PROMPT()
 
     def _collect_topic(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
-        """S3/S4 — ensure topic is filled, then move to slot resolution.
+        """S3/S4 — ensure topic is filled, then branch by intent.
 
-        Proceeds to _offer_slots as soon as day_preference is known.
-        time_preference is optional — _offer_slots defaults it to 'any'
-        and shows all available slots on that day.
-
-        If the LLM missed day/time extraction (common for short replies like
-        "tomorrow" or "Monday 3pm"), we re-extract from the raw user input
-        using the rule-based extractors as a guaranteed fallback.
+        - what_to_prepare    → give topic-specific checklist, offer to book
+        - check_availability → show slots (no topic required); soft closing question
+        - book_new (default) → proceed to slot offering
         """
+        # check_availability doesn't require a topic — go straight to slots
+        if ctx.intent == "check_availability":
+            ctx.topic_retry_count = 0
+            ctx.current_state = DialogueState.TOPIC_COLLECTED
+            if ctx.day_preference:
+                return self._offer_slots(ctx, resp)
+            return ctx, _TIME_PROMPT()
+
         if ctx.topic:
-            ctx.topic_retry_count = 0  # reset on success
+            ctx.topic_retry_count = 0
+
+            if ctx.intent == "what_to_prepare":
+                return self._handle_what_to_prepare(ctx)
+
             ctx.current_state = DialogueState.TOPIC_COLLECTED
             if ctx.day_preference:
                 return self._offer_slots(ctx, resp)
@@ -520,6 +639,20 @@ class DialogueFSM:
         if ctx.topic_retry_count == 2:
             return ctx, _TOPIC_CLARITY()
         return ctx, _TOPIC_PROMPT()
+
+    def _handle_what_to_prepare(self, ctx: DialogueContext) -> tuple[DialogueContext, str]:
+        """what_to_prepare intent — return topic-specific checklist then offer to book."""
+        _key_map = {
+            "kyc_onboarding":  "prepare_kyc_onboarding",
+            "sip_mandates":    "prepare_sip_mandates",
+            "statements_tax":  "prepare_statements_tax",
+            "withdrawals":     "prepare_withdrawals",
+            "account_changes": "prepare_account_changes",
+        }
+        key = _key_map.get(ctx.topic or "", "prepare_general")
+        # Stay in TOPIC_COLLECTED so a "yes" next turn goes to time collection
+        ctx.current_state = DialogueState.TOPIC_COLLECTED
+        return ctx, _s(key)
 
     def _offer_slots(self, ctx: DialogueContext, _resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S5 — always offer exactly 2 slots; expand search if needed.
@@ -651,7 +784,11 @@ class DialogueFSM:
         parts = [preamble]
         for i, s in enumerate(slots, 1):
             parts.append(_s("slots_option").format(i=i, slot_time=s.start_ist_str()))
-        parts.append(_s("slots_waitlist_q"))
+        # check_availability: softer closing — don't force a pick or waitlist
+        if ctx.intent == "check_availability":
+            parts.append(_s("avail_suffix"))
+        else:
+            parts.append(_s("slots_waitlist_q"))
         return ctx, "".join(parts)
 
     def _from_slots_offered(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
