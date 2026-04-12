@@ -32,6 +32,7 @@ lxml>=5.2.2
 
 # UI
 streamlit>=1.36.0
+plotly>=5.18.0
 
 # Session / Security
 redis>=5.0.7

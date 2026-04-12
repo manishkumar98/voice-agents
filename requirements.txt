@@ -70,6 +70,7 @@ python-multipart>=0.0.9             # Form/file upload support in FastAPI
 # DEMO & TESTING UI — Streamlit
 # -----------------------------------------------------------------------------
 streamlit>=1.36.0                   # Web UI for text-based testing console and voice demo
+plotly>=5.18.0                      # Interactive charts for homepage analytics section
 streamlit-webrtc>=0.47.6            # Browser microphone/speaker WebRTC component
 requests>=2.31.0                    # HTTP client (used by Sarvam AI TTS API)
 gTTS>=2.5.0                         # Google TTS fallback (last-resort, always available)
