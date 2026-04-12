@@ -11,8 +11,9 @@ persist, reload, and test without side effects.
 
 from __future__ import annotations
 
+import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 
@@ -20,22 +21,31 @@ from .states import DialogueContext, DialogueState, LLMResponse, TOPIC_LABELS
 
 IST = pytz.timezone("Asia/Kolkata")
 
+logging.basicConfig(level=logging.INFO)
+_log = logging.getLogger("fsm")
+
+
+def _speak_code(code: str) -> str:
+    """Expand booking/waitlist code for slow, clear TTS pronunciation.
+    'NL-NQG5' → 'N L,  N Q G 5'  (comma = natural pause between groups)
+    """
+    groups = code.split("-")
+    return ",  ".join(" ".join(list(g)) for g in groups)
+
 # ─── Static responses ─────────────────────────────────────────────────────────
 
 _STRINGS = {
     "en-IN": {
         "greeting": (
             "Hello! I'm the Advisor Scheduling assistant. "
-            "I can help you book a consultation with a financial advisor for topics like "
-            "KYC and onboarding, SIP and mandates, statements and tax documents, "
-            "withdrawals, or account changes and nominee updates. "
-            "I can also reschedule or cancel an existing appointment, "
-            "check available slots, or tell you what to prepare before your session."
+            "I can help you book, reschedule, or cancel advisor consultations "
+            "for topics like KYC, SIP, tax documents, withdrawals, or account changes. "
+            "I can also check available slots or tell you what to prepare."
         ),
         "disclaimer": (
-            "Quick note before we begin: our advisors provide informational guidance only — "
-            "not investment advice as defined under SEBI regulations. "
-            "No personal details like phone number or account number are collected on this call. "
+            "Quick note: our advisors provide informational guidance only, "
+            "not investment advice under SEBI regulations. "
+            "No personal details are collected on this call. "
             "Shall we continue?"
         ),
         "topic_prompt": (
@@ -81,9 +91,19 @@ _STRINGS = {
             "Have a wonderful day!"
         ),
         "waitlist": (
-            "I'm sorry, no slots are available for your requested time. "
-            "Would you like to be added to our waitlist? "
-            "We'll contact you as soon as a slot opens."
+            "I've added you to the waitlist. "
+            "You'll receive a secure link to submit your contact details — "
+            "we'll email you as soon as a matching slot opens up."
+        ),
+        "waitlist_offer_explicit": (
+            "Sure! I can add you to the waitlist for {topic_label}{day_part}{time_part}. "
+            "If anyone cancels a matching slot, you'll be first in line and we'll email you. "
+            "Shall I add you now?"
+        ),
+        "no_slots_anywhere": (
+            "I'm not finding any available slots at the moment. "
+            "You can join the waitlist — just say 'add me to the waitlist' and "
+            "we'll notify you by email when a slot opens up."
         ),
         "booking_code_prompt": "Please share your booking code so I can find your appointment.",
         "topic_circuit_breaker": (
@@ -96,14 +116,23 @@ _STRINGS = {
             "{topic_label} on {slot_readable}. "
             "Your booking code is {code_spoken}. "
             "Please note it down. "
+            "{prepare_reminder} "
             "You'll receive a secure link to submit your contact details. "
             "Thank you for calling!"
         ),
+        "reschedule_confirmed": (
+            "Done! Your {topic_label} consultation has been rescheduled to {slot_readable}. "
+            "Your booking code remains {code_spoken}. "
+            "{prepare_reminder} "
+            "You'll receive a secure link to update your contact details. "
+            "Thank you for calling!"
+        ),
         "waitlist_confirmed": (
-            "{queue_msg}Done. I've added you to the waitlist specifically for "
+            "{queue_msg}Done. You're on the waitlist for "
             "{topic_label}{day_part}{time_part}. "
             "Your waitlist code is {code_spoken}. "
-            "An advisor will reach out as soon as that slot opens. Thank you!"
+            "Please visit the link I'm sending to submit your email — "
+            "we'll notify you the moment a matching slot opens. Thank you!"
         ),
         "waitlist_decline": "No problem. Feel free to call back when you're ready. Goodbye!",
         "waitlist_redirect": (
@@ -113,6 +142,10 @@ _STRINGS = {
         ),
         "waitlist_reprompt": "Sorry, I didn't catch that. Would you like to be added to the waitlist? Just say yes or no.",
         "code_not_found": "I didn't catch your booking code. Could you repeat it?",
+        "code_no_appointment": (
+            "I could not find any appointment with that booking code. "
+            "Please double-check and try again, or say 'new booking' to schedule a fresh appointment."
+        ),
         "date_clarify": (
             "I didn't quite catch the date. "
             "Could you say something like: 'Monday', 'this week', or '10th April'?"
@@ -157,56 +190,115 @@ _STRINGS = {
             "withdrawals and timelines, or account changes?"
         ),
         "prepare_kyc_onboarding": (
-            "For a KYC and Onboarding session, please keep the following ready: "
-            "a government-issued photo ID — Aadhaar card, PAN card, or passport; "
-            "an address proof such as a utility bill or bank statement; "
-            "a cancelled cheque or recent bank statement for account linking; "
-            "and your existing account or folio details if you have any. "
-            "You don't need to share these on this call — "
+            "For a KYC and Onboarding session, please keep the following ready. "
+            "First, a government-issued photo ID — Aadhaar card, PAN card, or passport. "
+            "Second, address proof not older than three months — a utility bill, "
+            "bank statement, or rent agreement. "
+            "Third, a cancelled cheque or recent bank statement for account linking. "
+            "Fourth, your existing account or folio numbers if you have prior investments. "
+            "And fifth, the email address and mobile number linked to your PAN. "
+            "You don't need to share any of these on this call — "
             "bring them to the advisor session. "
             "Would you like to book an appointment?"
         ),
         "prepare_sip_mandates": (
-            "For a SIP and Mandates session, please keep ready: "
-            "your bank account number and IFSC code for mandate setup; "
-            "your existing folio or portfolio number if applicable; "
-            "and the SIP amount and frequency you have in mind. "
+            "For a SIP and Mandates session, please keep the following ready. "
+            "First, your bank account number, IFSC code, and branch name. "
+            "Second, your existing folio or portfolio number if you have one. "
+            "Third, the SIP amount, fund name, and frequency — monthly or quarterly — "
+            "that you have in mind. "
+            "Fourth, your net banking login or debit card details for e-mandate setup. "
+            "And fifth, your PAN card. "
             "You don't need to share these on this call — "
             "bring them to the advisor session. "
             "Would you like to book an appointment?"
         ),
         "prepare_statements_tax": (
-            "For a Statements and Tax Documents session, please keep ready: "
-            "your PAN card; "
-            "your broker or fund house login credentials or account number; "
-            "and the financial year or date range you need statements for. "
+            "For a Statements and Tax Documents session, please keep the following ready. "
+            "First, your PAN card. "
+            "Second, your broker or fund house login credentials or account number. "
+            "Third, the financial year or date range you need statements for. "
+            "Fourth, your Demat account number if you need a consolidated statement. "
+            "And fifth, Form 16 or your AIS from the income tax portal "
+            "if you are reconciling with your tax filing. "
             "You don't need to share these on this call — "
             "bring them to the advisor session. "
             "Would you like to book an appointment?"
         ),
         "prepare_withdrawals": (
-            "For a Withdrawals and Timelines session, please keep ready: "
-            "your folio number or account details; "
-            "your bank account details for redemption credit; "
-            "and any specific fund or amount you wish to withdraw. "
+            "For a Withdrawals and Timelines session, please keep the following ready. "
+            "First, your folio number or account details. "
+            "Second, your bank account number and IFSC code for the redemption credit. "
+            "Third, the fund name, number of units, or amount you wish to withdraw. "
+            "Fourth, your PAN card. "
+            "And fifth, any expected credit date if the withdrawal is time-sensitive. "
+            "Please note that standard redemption timelines are one to three business days "
+            "for liquid funds and three to five business days for equity funds. "
             "You don't need to share these on this call — "
             "bring them to the advisor session. "
             "Would you like to book an appointment?"
         ),
         "prepare_account_changes": (
-            "For an Account Changes and Nominee Updates session, please keep ready: "
-            "a government-issued photo ID; "
-            "your existing account or folio number; "
-            "nominee details including name, date of birth, and relationship; "
-            "and supporting documents for any name or address change. "
+            "For an Account Changes and Nominee Updates session, please keep the following ready. "
+            "First, a government-issued photo ID — Aadhaar, PAN, or passport. "
+            "Second, your existing account or folio number. "
+            "Third, nominee details including full name, date of birth, and relationship "
+            "to the account holder. "
+            "Fourth, supporting documents for any name or address change — "
+            "such as a marriage certificate or gazette notification. "
+            "And fifth, old and new bank account details if you are updating your linked bank. "
             "You don't need to share these on this call — "
             "bring them to the advisor session. "
             "Would you like to book an appointment?"
         ),
         "prepare_general": (
-            "Please keep your account details, a valid photo ID, and any relevant documents ready. "
-            "You don't need to share these on this call — bring them to the advisor session. "
+            "Please keep the following ready for your advisor session: "
+            "a valid government-issued photo ID, "
+            "your account or folio details, "
+            "any relevant financial documents, "
+            "and your PAN card. "
+            "You don't need to share these on this call — bring them to the session. "
             "Would you like to book an appointment?"
+        ),
+        "prepare_reminder_kyc_onboarding": (
+            "For your session, please keep ready: "
+            "Aadhaar, PAN card, or passport; "
+            "address proof not older than three months; "
+            "a cancelled cheque or bank statement; "
+            "and your existing folio number if any."
+        ),
+        "prepare_reminder_sip_mandates": (
+            "For your session, please keep ready: "
+            "your bank account number and IFSC code; "
+            "existing folio number if applicable; "
+            "the SIP amount and fund name you have in mind; "
+            "and net banking or debit card details for e-mandate."
+        ),
+        "prepare_reminder_statements_tax": (
+            "For your session, please keep ready: "
+            "your PAN card; "
+            "broker or fund house account number; "
+            "the financial year you need statements for; "
+            "and Form 16 or AIS if reconciling tax."
+        ),
+        "prepare_reminder_withdrawals": (
+            "For your session, please keep ready: "
+            "your folio number; "
+            "bank account details for redemption credit; "
+            "the fund name or amount to withdraw; "
+            "and your PAN card."
+        ),
+        "prepare_reminder_account_changes": (
+            "For your session, please keep ready: "
+            "a government photo ID; "
+            "your folio or account number; "
+            "nominee details including name, date of birth, and relationship; "
+            "and supporting documents for any name or address change."
+        ),
+        "prepare_reminder_general": (
+            "For your session, please keep ready: "
+            "a valid photo ID, your account or folio details, "
+            "and any documents relevant to your query."
         ),
         "prepare_no_book": (
             "No problem! Feel free to call back whenever you're ready to book. "
@@ -244,17 +336,12 @@ _STRINGS = {
     "hi-IN": {
         "greeting": (
             "नमस्ते! मैं Advisor Scheduling सहायक हूँ। "
-            "मैं आपकी एक वित्तीय सलाहकार के साथ परामर्श बुक करने में मदद कर सकता हूँ — "
-            "KYC और ऑनबोर्डिंग, SIP और मैंडेट, स्टेटमेंट और टैक्स, "
-            "निकासी, या खाते में बदलाव जैसे विषयों के लिए। "
-            "साथ ही मौजूदा अपॉइंटमेंट रिशेड्यूल या कैंसिल करना, "
-            "उपलब्ध स्लॉट देखना, या सेशन की तैयारी के बारे में जानकारी लेना — "
-            "ये सब भी हो सकता है।"
+            "बुकिंग, रिशेड्यूल, कैंसिल, स्लॉट देखना, या तैयारी की जानकारी — "
+            "KYC, SIP, टैक्स, निकासी, या खाते में बदलाव के लिए।"
         ),
         "disclaimer": (
-            "शुरू करने से पहले एक जानकारी: हमारे सलाहकार केवल जानकारी देते हैं — "
-            "SEBI नियमों के अंतर्गत निवेश सलाह नहीं। "
-            "इस कॉल पर फ़ोन नंबर या खाता नंबर जैसी कोई व्यक्तिगत जानकारी नहीं ली जाती। "
+            "एक जानकारी: सलाहकार केवल जानकारी देते हैं, निवेश सलाह नहीं। "
+            "कॉल पर कोई व्यक्तिगत जानकारी नहीं ली जाती। "
             "क्या हम आगे बढ़ें?"
         ),
         "topic_prompt": (
@@ -300,9 +387,19 @@ _STRINGS = {
             "आपका दिन अच्छा हो!"
         ),
         "waitlist": (
-            "खेद है, आपके अनुरोधित समय के लिए कोई स्लॉट उपलब्ध नहीं है। "
-            "क्या आप वेटलिस्ट में जुड़ना चाहेंगे? "
-            "स्लॉट खुलते ही हम आपसे संपर्क करेंगे।"
+            "आपको वेटलिस्ट में जोड़ दिया गया है। "
+            "आपको एक सुरक्षित लिंक भेजा जाएगा जहाँ आप अपना ईमेल दे सकते हैं — "
+            "जैसे ही कोई मेल खाता स्लॉट खुलेगा, हम आपको ईमेल करेंगे।"
+        ),
+        "waitlist_offer_explicit": (
+            "ज़रूर! मैं आपको {topic_label}{day_part}{time_part} के लिए वेटलिस्ट में जोड़ सकता हूँ। "
+            "यदि कोई मेल खाता स्लॉट रद्द होता है, तो आपको ईमेल से सूचित किया जाएगा। "
+            "क्या मैं आपको जोड़ूँ?"
+        ),
+        "no_slots_anywhere": (
+            "अभी कोई उपलब्ध स्लॉट नहीं मिल रहा। "
+            "आप वेटलिस्ट में जुड़ सकते हैं — बस कहें 'वेटलिस्ट में जोड़ें' "
+            "और स्लॉट खुलते ही हम आपको ईमेल करेंगे।"
         ),
         "booking_code_prompt": "कृपया अपना बुकिंग कोड बताएं ताकि मैं आपकी अपॉइंटमेंट ढूंढ सकूँ।",
         "topic_circuit_breaker": (
@@ -315,12 +412,21 @@ _STRINGS = {
             "{topic_label} — {slot_readable}। "
             "आपका बुकिंग कोड है {code_spoken}। "
             "कृपया इसे नोट कर लें। "
+            "{prepare_reminder} "
             "आपकी संपर्क जानकारी जमा करने के लिए एक सुरक्षित लिंक भेजा जाएगा। "
             "कॉल करने के लिए धन्यवाद!"
         ),
+        "reschedule_confirmed": (
+            "हो गया! आपकी {topic_label} परामर्श {slot_readable} पर पुनर्निर्धारित कर दी गई है। "
+            "आपका बुकिंग कोड {code_spoken} ही रहेगा। "
+            "{prepare_reminder} "
+            "संपर्क जानकारी अपडेट करने के लिए एक सुरक्षित लिंक भेजा जाएगा। "
+            "कॉल करने के लिए धन्यवाद!"
+        ),
         "waitlist_confirmed": (
-            "{queue_msg}हो गया। मैंने आपको {topic_label}{day_part}{time_part} के लिए वेटलिस्ट में जोड़ दिया है। "
+            "{queue_msg}हो गया। आप {topic_label}{day_part}{time_part} की वेटलिस्ट में हैं। "
             "आपका वेटलिस्ट कोड है {code_spoken}। "
+            "कृपया भेजे गए लिंक पर अपना ईमेल दें — स्लॉट खुलते ही हम आपको सूचित करेंगे। "
             "स्लॉट खुलते ही सलाहकार आपसे संपर्क करेंगे। धन्यवाद!"
         ),
         "waitlist_decline": "कोई बात नहीं। जब भी ज़रूरत हो, दोबारा कॉल करें। अलविदा!",
@@ -331,6 +437,10 @@ _STRINGS = {
         ),
         "waitlist_reprompt": "माफ़ करें, मैं समझ नहीं पाया। क्या आप वेटलिस्ट में जुड़ना चाहते हैं? हाँ या नहीं बोलिए।",
         "code_not_found": "मैं आपका बुकिंग कोड नहीं समझ पाया। क्या आप दोबारा बता सकते हैं?",
+        "code_no_appointment": (
+            "उस बुकिंग कोड से कोई अपॉइंटमेंट नहीं मिली। "
+            "कृपया दोबारा जाँचें और फिर से बताएं, या नई बुकिंग के लिए 'नई बुकिंग' कहें।"
+        ),
         "date_clarify": (
             "मैं तारीख समझ नहीं पाया। "
             "कृपया कुछ ऐसा बोलिए: 'सोमवार', 'इस सप्ताह', या '10 अप्रैल'।"
@@ -375,51 +485,103 @@ _STRINGS = {
             "निकासी, या खाता बदलाव?"
         ),
         "prepare_kyc_onboarding": (
-            "KYC और ऑनबोर्डिंग सेशन के लिए, कृपया ये तैयार रखें: "
-            "सरकारी फ़ोटो ID — आधार कार्ड, PAN कार्ड, या पासपोर्ट; "
-            "पते का प्रमाण जैसे बिजली बिल या बैंक स्टेटमेंट; "
-            "एक कैंसल चेक या हालिया बैंक स्टेटमेंट; "
-            "और यदि हो तो मौजूदा खाता या फ़ोलियो नंबर। "
+            "KYC और ऑनबोर्डिंग सेशन के लिए, कृपया ये तैयार रखें। "
+            "पहला — सरकारी फ़ोटो ID: आधार कार्ड, PAN कार्ड, या पासपोर्ट। "
+            "दूसरा — तीन महीने से पुराना नहीं ऐसा पते का प्रमाण: बिजली बिल, बैंक स्टेटमेंट, या किराया समझौता। "
+            "तीसरा — खाता लिंक करने के लिए एक कैंसल चेक या हालिया बैंक स्टेटमेंट। "
+            "चौथा — यदि पहले से निवेश है तो मौजूदा खाता या फ़ोलियो नंबर। "
+            "और पाँचवाँ — PAN से जुड़ा ईमेल और मोबाइल नंबर। "
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
         "prepare_sip_mandates": (
-            "SIP और मैंडेट सेशन के लिए, कृपया ये तैयार रखें: "
-            "बैंक खाता नंबर और IFSC कोड; "
-            "मौजूदा फ़ोलियो या पोर्टफ़ोलियो नंबर यदि हो; "
-            "और जो SIP राशि और अवधि आपके मन में है। "
+            "SIP और मैंडेट सेशन के लिए, कृपया ये तैयार रखें। "
+            "पहला — बैंक खाता नंबर, IFSC कोड, और शाखा का नाम। "
+            "दूसरा — यदि हो तो मौजूदा फ़ोलियो या पोर्टफ़ोलियो नंबर। "
+            "तीसरा — SIP राशि, फंड का नाम, और अवधि — मासिक या त्रैमासिक। "
+            "चौथा — e-mandate के लिए नेट बैंकिंग या डेबिट कार्ड की जानकारी। "
+            "और पाँचवाँ — PAN कार्ड। "
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
         "prepare_statements_tax": (
-            "स्टेटमेंट और टैक्स दस्तावेज़ सेशन के लिए, कृपया ये तैयार रखें: "
-            "PAN कार्ड; "
-            "ब्रोकर या फंड हाउस लॉगिन या खाता नंबर; "
-            "और जिस वित्त वर्ष या तारीख का स्टेटमेंट चाहिए। "
+            "स्टेटमेंट और टैक्स दस्तावेज़ सेशन के लिए, कृपया ये तैयार रखें। "
+            "पहला — PAN कार्ड। "
+            "दूसरा — ब्रोकर या फंड हाउस का लॉगिन या खाता नंबर। "
+            "तीसरा — जिस वित्त वर्ष या तारीख का स्टेटमेंट चाहिए। "
+            "चौथा — Demat खाता नंबर यदि समेकित स्टेटमेंट चाहिए। "
+            "और पाँचवाँ — Form 16 या AIS यदि टैक्स फाइलिंग से मिलान करना है। "
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
         "prepare_withdrawals": (
-            "निकासी और टाइमलाइन सेशन के लिए, कृपया ये तैयार रखें: "
-            "फ़ोलियो नंबर या खाता विवरण; "
-            "रिडेम्पशन के लिए बैंक खाता विवरण; "
-            "और जो फंड या राशि निकालनी है उसकी जानकारी। "
+            "निकासी और टाइमलाइन सेशन के लिए, कृपया ये तैयार रखें। "
+            "पहला — फ़ोलियो नंबर या खाता विवरण। "
+            "दूसरा — रिडेम्पशन के लिए बैंक खाता नंबर और IFSC कोड। "
+            "तीसरा — जो फंड, यूनिट, या राशि निकालनी है उसकी जानकारी। "
+            "चौथा — PAN कार्ड। "
+            "और पाँचवाँ — यदि समय-संवेदनशील हो तो अपेक्षित जमा तिथि। "
+            "ध्यान रखें — लिक्विड फंड में एक से तीन और इक्विटी फंड में "
+            "तीन से पाँच कार्यदिवस लगते हैं। "
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
         "prepare_account_changes": (
-            "खाता बदलाव और नॉमिनी अपडेट सेशन के लिए, कृपया ये तैयार रखें: "
-            "सरकारी फ़ोटो ID; "
-            "मौजूदा खाता या फ़ोलियो नंबर; "
-            "नॉमिनी की जानकारी — नाम, जन्मतिथि, रिश्ता; "
-            "और नाम या पते के बदलाव के लिए सहायक दस्तावेज़। "
+            "खाता बदलाव और नॉमिनी अपडेट सेशन के लिए, कृपया ये तैयार रखें। "
+            "पहला — सरकारी फ़ोटो ID: आधार, PAN, या पासपोर्ट। "
+            "दूसरा — मौजूदा खाता या फ़ोलियो नंबर। "
+            "तीसरा — नॉमिनी की जानकारी — पूरा नाम, जन्मतिथि, और खाताधारक से रिश्ता। "
+            "चौथा — नाम या पते के बदलाव के लिए सहायक दस्तावेज़ — "
+            "जैसे विवाह प्रमाणपत्र या राजपत्र अधिसूचना। "
+            "और पाँचवाँ — यदि लिंक्ड बैंक बदलना हो तो पुराने और नए बैंक खाते की जानकारी। "
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
         ),
         "prepare_general": (
-            "कृपया अपना खाता विवरण, एक वैध फ़ोटो ID, और संबंधित दस्तावेज़ तैयार रखें। "
+            "कृपया अपने सेशन के लिए ये तैयार रखें: "
+            "एक वैध सरकारी फ़ोटो ID, खाता या फ़ोलियो विवरण, "
+            "संबंधित वित्तीय दस्तावेज़, और PAN कार्ड। "
             "इन्हें कॉल पर साझा करने की ज़रूरत नहीं — सेशन में लाएं। "
             "क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+        ),
+        "prepare_reminder_kyc_onboarding": (
+            "सेशन के लिए कृपया तैयार रखें: "
+            "आधार, PAN, या पासपोर्ट; "
+            "तीन महीने से पुराना नहीं पते का प्रमाण; "
+            "कैंसल चेक या बैंक स्टेटमेंट; "
+            "और मौजूदा फ़ोलियो नंबर यदि हो।"
+        ),
+        "prepare_reminder_sip_mandates": (
+            "सेशन के लिए कृपया तैयार रखें: "
+            "बैंक खाता नंबर और IFSC कोड; "
+            "मौजूदा फ़ोलियो नंबर यदि हो; "
+            "SIP राशि और फंड का नाम; "
+            "और e-mandate के लिए नेट बैंकिंग या डेबिट कार्ड।"
+        ),
+        "prepare_reminder_statements_tax": (
+            "सेशन के लिए कृपया तैयार रखें: "
+            "PAN कार्ड; "
+            "ब्रोकर या फंड हाउस खाता नंबर; "
+            "जिस वित्त वर्ष का स्टेटमेंट चाहिए; "
+            "और Form 16 या AIS यदि टैक्स मिलान करना हो।"
+        ),
+        "prepare_reminder_withdrawals": (
+            "सेशन के लिए कृपया तैयार रखें: "
+            "फ़ोलियो नंबर; "
+            "रिडेम्पशन के लिए बैंक खाता विवरण; "
+            "निकालने वाले फंड या राशि की जानकारी; "
+            "और PAN कार्ड।"
+        ),
+        "prepare_reminder_account_changes": (
+            "सेशन के लिए कृपया तैयार रखें: "
+            "सरकारी फ़ोटो ID; "
+            "खाता या फ़ोलियो नंबर; "
+            "नॉमिनी का नाम, जन्मतिथि, और रिश्ता; "
+            "और नाम या पते बदलाव के सहायक दस्तावेज़।"
+        ),
+        "prepare_reminder_general": (
+            "सेशन के लिए कृपया तैयार रखें: "
+            "एक वैध फ़ोटो ID, खाता या फ़ोलियो विवरण, और संबंधित दस्तावेज़।"
         ),
         "prepare_no_book": (
             "कोई बात नहीं! जब भी बुकिंग करनी हो, दोबारा कॉल करें। आपका दिन शुभ हो!"
@@ -580,9 +742,16 @@ class DialogueFSM:
             return ctx, _s("intent_switch_reschedule")
 
         # ── Intent switch: book_new (while in cancel/reschedule/waitlist) ─────
+        # Do NOT intercept if we are mid-reschedule collecting a new date/time —
+        # the user saying "Monday at 10am" gets classified as book_new by the LLM
+        # but we must stay in the reschedule flow.
+        _mid_reschedule_slot_collect = (
+            ctx.intent == "reschedule"
+            and ctx.current_state == DialogueState.TIME_PREFERENCE_COLLECTED
+        )
         if _post_disclaimer and llm_response.intent == "book_new" and ctx.intent in (
             "cancel", "reschedule", "check_availability", "what_to_prepare"
-        ):
+        ) and not _mid_reschedule_slot_collect:
             ctx.intent = "book_new"
             ctx.existing_booking_code = None
             ctx.code_retry_count = 0
@@ -613,15 +782,21 @@ class DialogueFSM:
         # ── Compliance refusals — stay in same state ──────────────────────────
         # Skip compliance checks in greeting/disclaimer states — any response
         # there is just an acknowledgement to proceed, not truly out-of-scope.
+        # Also skip out_of_scope when collecting new date/time mid-reschedule:
+        # "Monday at 10am" can confuse the LLM into flagging out_of_scope.
         _in_greeting_state = ctx.current_state in (
             DialogueState.GREETED, DialogueState.DISCLAIMER_CONFIRMED
+        )
+        _mid_reschedule_collect = (
+            ctx.intent == "reschedule"
+            and ctx.current_state == DialogueState.TIME_PREFERENCE_COLLECTED
         )
         if not _in_greeting_state:
             if llm_response.compliance_flag == "refuse_advice":
                 return ctx, _REFUSAL_ADVICE()
             if llm_response.compliance_flag == "refuse_pii":
                 return ctx, _REFUSAL_PII()
-            if llm_response.compliance_flag == "out_of_scope":
+            if llm_response.compliance_flag == "out_of_scope" and not _mid_reschedule_collect:
                 return ctx, _OUT_OF_SCOPE()
         if llm_response.intent == "timezone_query":
             return ctx, _TIMEZONE_RESPONSE()
@@ -710,7 +885,25 @@ class DialogueFSM:
     def _from_greeted(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
         """S1 → S2 on any affirmative / acknowledgement."""
         ctx.current_state = DialogueState.DISCLAIMER_CONFIRMED
-        # If the LLM already extracted an intent, jump straight to topic
+        # Direct intent jump — works from greeting without waiting for disclaimer step
+        if resp.intent == "cancel":
+            ctx.intent = "cancel"
+            ctx.code_retry_count = 0
+            ctx.current_state = DialogueState.CANCEL_CODE_COLLECTED
+            if resp.slots.get("existing_booking_code"):
+                ctx.existing_booking_code = resp.slots["existing_booking_code"]
+            if ctx.existing_booking_code:
+                return self._handle_code_flow(ctx, resp)
+            return ctx, _s("intent_switch_cancel")
+        if resp.intent == "reschedule":
+            ctx.intent = "reschedule"
+            ctx.code_retry_count = 0
+            ctx.current_state = DialogueState.RESCHEDULE_CODE_COLLECTED
+            if resp.slots.get("existing_booking_code"):
+                ctx.existing_booking_code = resp.slots["existing_booking_code"]
+            if ctx.existing_booking_code:
+                return self._handle_code_flow(ctx, resp)
+            return ctx, _s("intent_switch_reschedule")
         if resp.intent in ("book_new", "what_to_prepare", "check_availability"):
             ctx.intent = resp.intent
             ctx.current_state = DialogueState.INTENT_IDENTIFIED
@@ -865,8 +1058,8 @@ class DialogueFSM:
                     break
 
             if not fallback:
-                ctx.current_state = DialogueState.WAITLIST_OFFERED
-                return ctx, _WAITLIST_OFFER()
+                ctx.current_state = DialogueState.SLOTS_OFFERED
+                return ctx, _s("no_slots_anywhere")
 
             next_day_label = fallback[0].start.strftime("%A, %d %b")
             slots = fallback[:2]
@@ -885,7 +1078,7 @@ class DialogueFSM:
             parts = [preamble]
             for i, s in enumerate(slots, 1):
                 parts.append(_s("slots_option").format(i=i, slot_time=s.start_ist_str()))
-            parts.append(_s("slots_waitlist_q"))
+            parts.append(_s("slots_which"))
             return ctx, "".join(parts)
 
         # ── Step 2: Day has slots — apply time filter then fill up to 2 ───────
@@ -907,8 +1100,8 @@ class DialogueFSM:
         slots.sort(key=lambda s: s.start)
 
         if not slots:
-            ctx.current_state = DialogueState.WAITLIST_OFFERED
-            return ctx, _WAITLIST_OFFER()
+            ctx.current_state = DialogueState.SLOTS_OFFERED
+            return ctx, _s("no_slots_anywhere")
 
         ctx.current_state = DialogueState.SLOTS_OFFERED
         ctx.offered_slots = [
@@ -935,11 +1128,11 @@ class DialogueFSM:
         parts = [preamble]
         for i, s in enumerate(slots, 1):
             parts.append(_s("slots_option").format(i=i, slot_time=s.start_ist_str()))
-        # check_availability: softer closing — don't force a pick or waitlist
+        # check_availability: softer closing
         if ctx.intent == "check_availability":
             parts.append(_s("avail_suffix"))
         else:
-            parts.append(_s("slots_waitlist_q"))
+            parts.append(_s("slots_which"))
         return ctx, "".join(parts)
 
     def _from_slots_offered(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
@@ -959,41 +1152,56 @@ class DialogueFSM:
 
         if ctx.slots_repeat_count > 2:
             ctx.slots_repeat_count = 0
-            ctx.current_state = DialogueState.WAITLIST_OFFERED
-            return ctx, _s("slots_trouble") + _WAITLIST_OFFER()
+            # Re-present options rather than auto-pushing to waitlist
+            parts = [_s("slots_sorry")]
+            for i, sl in enumerate(ctx.offered_slots, 1):
+                parts.append(_s("slots_option").format(i=i, slot_time=sl["start_ist"]))
+            parts.append(_s("slots_which"))
+            return ctx, "".join(parts)
 
-        # ── Waitlist request ────────────────────────────────────────────────
-        waitlist_words = {"waitlist", "wait list", "wait-list", "add me", "notify me", "let me know"}
+        # ── Waitlist request — only when user explicitly asks ───────────────
+        waitlist_words = {"waitlist", "wait list", "wait-list", "add me to waitlist",
+                          "put me on waitlist", "notify me", "waitlisted"}
         if any(w in speech_lower for w in waitlist_words):
+            topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
+            day_part  = f" on {ctx.day_preference}" if ctx.day_preference else ""
+            time_part = f" at {ctx.time_preference}" if ctx.time_preference and ctx.time_preference != "any" else ""
             ctx.current_state = DialogueState.WAITLIST_OFFERED
-            return ctx, _WAITLIST_OFFER()
+            return ctx, _s("waitlist_offer_explicit").format(
+                topic_label=topic_label, day_part=day_part, time_part=time_part
+            )
 
         # ── Ordinal / option selector — must run BEFORE day/time extraction ─
-        # "1st", "first", "option 1" → Option 1
-        # "2nd", "second", "option 2" → Option 2
-        # Without this, "1st" gets extracted as day=1 (April 1st) and fails.
         import re as _re
+
+        def _confirm_slot(sl):
+            ctx.resolved_slot = sl
+            ctx.current_state = DialogueState.SLOT_CONFIRMED
+            topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
+            return ctx, _s("slot_confirm").format(
+                topic_label=topic_label,
+                slot_str=sl.get("start_ist", "your selected time"),
+            )
+
         if ctx.offered_slots:
-            # Use speech_lower (resp.speech + resp.raw_response) for ordinal detection so
-            # that test helpers with raw="" still work — resp.speech carries "First one please."
             _words = set(_re.findall(r"[a-z0-9]+", speech_lower))
-            _opt2_words = {"2nd", "second", "two"}
-            # Option 1: "1st"/"first"/"one" — but NOT when "2nd/second/two" is also present
-            # ("2nd one" means "the second one", not "option one")
-            if (any(w in _words for w in {"1st", "first", "one"})
-                    and not any(w in _words for w in _opt2_words)
-                    and not _re.search(r"\b\d{1,2}(st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d)", speech_lower)):
-                ctx.resolved_slot = ctx.offered_slots[0]
-                ctx.current_state = DialogueState.SLOT_CONFIRMED
-                topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
-                slot_str = ctx.resolved_slot.get("start_ist", "your selected time")
-                return ctx, _s("slot_confirm").format(topic_label=topic_label, slot_str=slot_str)
-            if any(w in _words for w in _opt2_words) and len(ctx.offered_slots) >= 2:
-                ctx.resolved_slot = ctx.offered_slots[1]
-                ctx.current_state = DialogueState.SLOT_CONFIRMED
-                topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
-                slot_str = ctx.resolved_slot.get("start_ist", "your selected time")
-                return ctx, _s("slot_confirm").format(topic_label=topic_label, slot_str=slot_str)
+            _opt1_words = {"1st", "first", "one", "earliest", "earlier"}
+            _opt2_words = {"2nd", "second", "two", "later", "latter", "last"}
+            _has_date   = bool(_re.search(
+                r"\b\d{1,2}(st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d)", speech_lower))
+            _has_opt2   = any(w in _words for w in _opt2_words)
+            _has_opt1   = any(w in _words for w in _opt1_words) and not _has_opt2
+
+            # Explicit "option 1/2" or "number 1/2"
+            if _re.search(r"\b(option|number|no\.?)\s*1\b", speech_lower):
+                return _confirm_slot(ctx.offered_slots[0])
+            if _re.search(r"\b(option|number|no\.?)\s*2\b", speech_lower) and len(ctx.offered_slots) >= 2:
+                return _confirm_slot(ctx.offered_slots[1])
+
+            if _has_opt1 and not _has_date:
+                return _confirm_slot(ctx.offered_slots[0])
+            if _has_opt2 and not _has_date and len(ctx.offered_slots) >= 2:
+                return _confirm_slot(ctx.offered_slots[1])
 
         # ── Slot matching: check if user is selecting an offered slot ────────
         # Handles: "10am", "10am is fine", "monday 10am", "option 1", "second"
@@ -1004,16 +1212,27 @@ class DialogueFSM:
             matched_idx = None
 
             if ctx.offered_slots:
-                # Parse time band
+                # ── Extract exact hour+minute from user's stated time ──────────
+                exact_hour: int | None = None
+                exact_minute: int | None = None
                 time_band = None
                 if new_time:
                     band, _ = _parse_time_preference(new_time)
                     time_band = band
+                    _tm = _re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", new_time.lower())
+                    if _tm:
+                        _h = int(_tm.group(1))
+                        _m = int(_tm.group(2)) if _tm.group(2) else 0
+                        _ap = _tm.group(3)
+                        if _ap == "pm" and _h < 12:
+                            _h += 12
+                        elif _ap == "am" and _h == 12:
+                            _h = 0
+                        elif _ap is None and _h <= 6:
+                            _h += 12
+                        exact_hour, exact_minute = _h, _m
 
-                # Parse target day from new_day (if present).
-                # Bare weekday names ("monday") match by weekday number so that
-                # "monday" matches any Monday in the offered list (April 6 or 13…).
-                # Specific dates ("13/04/2026") still require exact date equality.
+                # Parse target day
                 target_date = None
                 target_weekday = None
                 if new_day:
@@ -1021,24 +1240,40 @@ class DialogueFSM:
                     dates, confident = _parse_day_preference(new_day)
                     if dates and confident:
                         if new_day.lower().strip() in _WEEKDAY_NAMES:
-                            # Bare weekday → match by weekday number
                             target_weekday = dates[0].weekday()
                         else:
-                            # Specific date → exact match
                             target_date = dates[0].date()
 
-                for i, sl in enumerate(ctx.offered_slots):
-                    slot_dt = _dt.fromisoformat(sl["start"])
-                    time_ok = (not time_band) or (time_band[0] <= slot_dt.hour < time_band[1])
+                def _day_ok(slot_dt):
                     if target_date is not None:
-                        day_ok = slot_dt.date() == target_date
-                    elif target_weekday is not None:
-                        day_ok = slot_dt.weekday() == target_weekday
-                    else:
-                        day_ok = True
-                    if time_ok and day_ok:
-                        matched_idx = i
-                        break
+                        return slot_dt.date() == target_date
+                    if target_weekday is not None:
+                        return slot_dt.weekday() == target_weekday
+                    return True
+
+                # Pass 1: exact hour+minute match (user said "3:30pm" → only 3:30 slot)
+                if exact_hour is not None:
+                    for i, sl in enumerate(ctx.offered_slots):
+                        slot_dt = _dt.fromisoformat(sl["start"])
+                        if slot_dt.hour == exact_hour and slot_dt.minute == exact_minute and _day_ok(slot_dt):
+                            matched_idx = i
+                            break
+
+                # Pass 2: hour-window match (fallback for "3pm" with no minutes)
+                if matched_idx is None and time_band:
+                    for i, sl in enumerate(ctx.offered_slots):
+                        slot_dt = _dt.fromisoformat(sl["start"])
+                        if time_band[0] <= slot_dt.hour < time_band[1] and _day_ok(slot_dt):
+                            matched_idx = i
+                            break
+
+                # Pass 3: day-only match (user just said "Sunday")
+                if matched_idx is None and new_day and not new_time:
+                    for i, sl in enumerate(ctx.offered_slots):
+                        slot_dt = _dt.fromisoformat(sl["start"])
+                        if _day_ok(slot_dt):
+                            matched_idx = i
+                            break
 
             if matched_idx is not None:
                 ctx.resolved_slot = ctx.offered_slots[matched_idx]
@@ -1062,7 +1297,7 @@ class DialogueFSM:
                 parts = [_s("slots_again")]
                 for i, sl in enumerate(ctx.offered_slots, 1):
                     parts.append(_s("slots_option").format(i=i, slot_time=sl["start_ist"]))
-                parts.append(_s("slots_waitlist_q"))
+                parts.append(_s("slots_which"))
                 return ctx, "".join(parts)
 
         # ── Rejection — ask for a different day/time ────────────────────────
@@ -1077,23 +1312,14 @@ class DialogueFSM:
             ctx.time_preference = None
             return ctx, _s("slots_new_day")
 
-        # Detect which option the user picked (option 2 / second)
-        _picked_second = False
-        if ctx.offered_slots and len(ctx.offered_slots) >= 2:
-            second_words = {"2", "two", "second", "option 2", "second one", "latter", "last"}
-            if any(w in speech_lower for w in second_words):
-                ctx.resolved_slot = ctx.offered_slots[1]
-                _picked_second = True
-
-        # Only confirm when there is a clear positive signal.
-        # If input is truly unrecognised, re-present options so the repetition
-        # guard can activate on the next identical turn.
+        # Generic affirmation — confirms whichever slot is already in resolved_slot
+        # (default = offered_slots[0], set by ordinal block above if user was specific)
         _affirm_words = {
             "yes", "ok", "okay", "sure", "correct", "fine", "alright", "right",
             "confirm", "confirmed", "go ahead", "proceed", "sounds good",
-            "yep", "yup", "that", "works", "great", "perfect", "1", "option 1",
+            "yep", "yup", "that", "works", "great", "perfect",
         }
-        _is_affirm = _picked_second or any(w in speech_lower for w in _affirm_words)
+        _is_affirm = any(w in speech_lower for w in _affirm_words)
 
         if not _is_affirm and ctx.offered_slots:
             parts = [_s("slots_sorry")]
@@ -1114,13 +1340,32 @@ class DialogueFSM:
     def _dispatch_mcp(self, ctx: DialogueContext) -> tuple[DialogueContext, str]:
         """
         S7 → S8 → S9 — generate booking code + secure URL.
-        MCP tools (Calendar, Sheets, Gmail) are Phase 4; here we simulate success.
+        For reschedule: updates existing Calendar event and Sheets row in-place,
+        keeping the same booking code and topic.
         """
         from src.booking.booking_code_generator import generate_booking_code
         from src.booking.secure_url_generator import generate_secure_url
 
         ctx.current_state = DialogueState.MCP_DISPATCHED
-        if not ctx.booking_code:
+        is_reschedule = bool(ctx.intent == "reschedule" and ctx.existing_booking_code)
+
+        # For reschedule: restore topic from original Sheets row if not already set
+        if is_reschedule and not ctx.topic:
+            try:
+                from src.mcp.sheets_tool import _get_booking_details_sync
+                _details = _get_booking_details_sync(ctx.existing_booking_code)
+                if _details:
+                    ctx.topic = _details.get("topic_key") or ctx.topic
+                    _log.info("Restored topic '%s' from original booking %s",
+                              ctx.topic, ctx.existing_booking_code)
+            except Exception as _exc:
+                _log.warning("Could not restore topic from sheets for %s: %s",
+                             ctx.existing_booking_code, _exc)
+
+        # For reschedule: keep old booking code; for new booking: generate fresh one
+        if is_reschedule:
+            ctx.booking_code = ctx.existing_booking_code
+        else:
             ctx.booking_code = generate_booking_code()
 
         # Use ISO for secure URL signing, readable IST for speech
@@ -1129,6 +1374,16 @@ class DialogueFSM:
             ctx.resolved_slot.get("start_ist", slot_iso)
             if ctx.resolved_slot else slot_iso
         )
+        # Compute end time: start + configured slot duration (same as build_payload)
+        slot_end_iso = ""
+        if slot_iso:
+            try:
+                from src.mcp.config import config as _mcp_cfg
+                _start_dt  = datetime.fromisoformat(slot_iso)
+                _end_dt    = _start_dt + timedelta(minutes=_mcp_cfg.slot_duration_minutes)
+                slot_end_iso = _end_dt.isoformat()
+            except Exception:
+                pass
         url = generate_secure_url(
             booking_code=ctx.booking_code,
             topic=ctx.topic or "general",
@@ -1139,19 +1394,50 @@ class DialogueFSM:
         # Phase 4: attempt real MCP dispatch; fall back to mock flags on any failure
         ctx.calendar_hold_created, ctx.notes_appended, ctx.email_drafted = True, True, True
         try:
-            from src.mcp.mcp_orchestrator import dispatch_mcp_sync, build_payload
-            _mcp_results = dispatch_mcp_sync(build_payload(ctx))
-            ctx.calendar_hold_created = _mcp_results.calendar_success
-            ctx.notes_appended        = _mcp_results.sheets_success
-            ctx.email_drafted         = _mcp_results.email_success
-        except Exception:
-            pass  # MCP unavailable or failed — booking code still issued
+            if is_reschedule:
+                from src.mcp.mcp_orchestrator import reschedule_booking_mcp_sync
+                _mcp_results = reschedule_booking_mcp_sync(
+                    ctx.existing_booking_code,
+                    slot_iso,
+                    slot_end_iso,
+                    slot_readable,
+                )
+                ctx.calendar_hold_created = _mcp_results.calendar_success
+                ctx.notes_appended        = _mcp_results.sheets_success
+                ctx.email_drafted         = True  # no email step for reschedule
+                _log.info("Reschedule MCP result for %s: %s",
+                          ctx.existing_booking_code, _mcp_results.summary())
+            else:
+                from src.mcp.mcp_orchestrator import dispatch_mcp_sync, build_payload
+                _mcp_results = dispatch_mcp_sync(build_payload(ctx))
+                ctx.calendar_hold_created = _mcp_results.calendar_success
+                ctx.notes_appended        = _mcp_results.sheets_success
+                ctx.email_drafted         = _mcp_results.email_success
+                _log.info("Booking MCP result for %s: %s", ctx.booking_code, _mcp_results.summary())
+        except Exception as _exc:
+            _log.error("dispatch_mcp_sync failed for %s: %s", ctx.booking_code, _exc)
         ctx.current_state = DialogueState.BOOKING_COMPLETE
 
         topic_label = TOPIC_LABELS.get(ctx.topic or "", "your consultation")
-        code_spoken = " - ".join(list(ctx.booking_code))
+        code_spoken = _speak_code(ctx.booking_code)
+
+        _reminder_key_map = {
+            "kyc_onboarding":  "prepare_reminder_kyc_onboarding",
+            "sip_mandates":    "prepare_reminder_sip_mandates",
+            "statements_tax":  "prepare_reminder_statements_tax",
+            "withdrawals":     "prepare_reminder_withdrawals",
+            "account_changes": "prepare_reminder_account_changes",
+        }
+        prepare_reminder = _s(_reminder_key_map.get(ctx.topic or "", "prepare_reminder_general"))
+
+        if is_reschedule:
+            return ctx, _s("reschedule_confirmed").format(
+                topic_label=topic_label, slot_readable=slot_readable,
+                code_spoken=code_spoken, prepare_reminder=prepare_reminder,
+            )
         return ctx, _s("booking_confirmed").format(
-            topic_label=topic_label, slot_readable=slot_readable, code_spoken=code_spoken
+            topic_label=topic_label, slot_readable=slot_readable,
+            code_spoken=code_spoken, prepare_reminder=prepare_reminder,
         )
 
     def _from_waitlist_offered(self, ctx: DialogueContext, resp: LLMResponse) -> tuple[DialogueContext, str]:
@@ -1166,6 +1452,7 @@ class DialogueFSM:
 
         if any(w in user_lower for w in positive):
             from src.booking.waitlist_queue import get_global_queue
+            from src.booking.secure_url_generator import generate_secure_url
             entry = create_waitlist_entry(
                 topic=ctx.topic or "general",
                 day_preference=ctx.day_preference or "any day",
@@ -1174,20 +1461,27 @@ class DialogueFSM:
             queue = get_global_queue()
             position = queue.add(entry)
             ctx.waitlist_code = entry.waitlist_code
-            ctx.current_state = DialogueState.WAITLIST_CONFIRMED
-            code_spoken = " - ".join(list(entry.waitlist_code))
-
-            # Phase 4: create waitlist calendar hold + draft email
+            # Record waitlisted row in Google Sheets
             try:
-                from src.mcp.mcp_orchestrator import dispatch_mcp_sync, build_waitlist_payload
-                dispatch_mcp_sync(build_waitlist_payload(entry, ctx))
+                from src.mcp.mcp_orchestrator import record_waitlist_in_sheets_sync
+                record_waitlist_in_sheets_sync(entry, ctx)
             except Exception:
-                pass  # MCP unavailable — waitlist code still issued
+                pass
+            ctx.current_state = DialogueState.WAITLIST_CONFIRMED
+            code_spoken = _speak_code(entry.waitlist_code)
 
-            # Build contextual confirmation using whatever slots are filled
+            # Generate a secure URL so the user can submit their email for notifications
+            # Reuse booking secure URL with waitlist_code as the booking_code field
+            waitlist_url = generate_secure_url(
+                booking_code=entry.waitlist_code,
+                topic=ctx.topic or "general",
+                slot_ist=f"{ctx.day_preference or 'any'} {ctx.time_preference or 'any'}",
+            )
+            ctx.secure_url = waitlist_url
+
             topic_label = TOPIC_LABELS.get(ctx.topic or "", ctx.topic or "your topic")
             day_part  = f" on {ctx.day_preference}" if ctx.day_preference else ""
-            time_part = (f" in the {ctx.time_preference}" if ctx.time_preference and ctx.time_preference != "any"
+            time_part = (f" at {ctx.time_preference}" if ctx.time_preference and ctx.time_preference != "any"
                          else "")
             queue_msg = f"You're number {position} in the queue. " if position > 1 else ""
 
@@ -1222,6 +1516,20 @@ class DialogueFSM:
                 return ctx, _s("code_max_retries")
             return ctx, _s("code_not_found")
 
+        # Validate the code exists in Sheets before accepting it
+        try:
+            from src.mcp.sheets_tool import _get_booking_row_sync
+            row_idx, _ = _get_booking_row_sync(code)
+        except Exception:
+            row_idx = True  # If Sheets is unavailable, allow through (don't block on infra failure)
+
+        if not row_idx:
+            ctx.code_retry_count += 1
+            if ctx.code_retry_count >= 3:
+                ctx.current_state = DialogueState.END
+                return ctx, _s("code_max_retries")
+            return ctx, _s("code_no_appointment")
+
         ctx.existing_booking_code = code
         ctx.code_retry_count = 0
 
@@ -1248,25 +1556,50 @@ class DialogueFSM:
         if any(w in speech_lower for w in positive):
             # Execute the cancellation
             from src.booking.waitlist_queue import get_global_queue
-            from src.booking.slot_resolver import resolve_slots
+            from src.booking.slot_resolver import CalendarSlot
+            from datetime import datetime as _dt
             queue = get_global_queue()
             promotion_note = ""
             if ctx.resolved_slot:
                 try:
-                    calendar_path = os.environ.get("MOCK_CALENDAR_PATH", "data/mock_calendar.json")
-                    freed_slots = resolve_slots(
-                        day_preference="this week", time_preference="any",
-                        topic=ctx.topic, calendar_path=calendar_path, max_results=10,
+                    # Reconstruct the freed CalendarSlot from the cancelled booking
+                    slot_start = _dt.fromisoformat(ctx.resolved_slot["start"])
+                    slot_end   = slot_start + __import__("datetime").timedelta(minutes=30)
+                    freed_slot = CalendarSlot(
+                        slot_id=ctx.resolved_slot.get("slot_id", f"freed-{slot_start.isoformat()}"),
+                        start=slot_start,
+                        end=slot_end,
+                        status="AVAILABLE",
+                        topic_affinity=[ctx.topic] if ctx.topic else [],
                     )
-                    for freed_slot in freed_slots:
-                        result = queue.on_cancellation(freed_slot)
-                        if result:
-                            promotion_note = (
-                                f" The next person on our waitlist will be notified about the opening."
-                            )
-                            break
+                    result = queue.on_cancellation(freed_slot)
+                    if result:
+                        promotion_note = " The next person on our waitlist will be notified by email."
+                        # Send email notification if contact details were provided
+                        promoted = result.promoted_entry
+                        if promoted.email:
+                            try:
+                                from src.mcp.email_tool import send_waitlist_notification
+                                from src.dialogue.states import TOPIC_LABELS
+                                send_waitlist_notification(
+                                    to_name=promoted.name or "Valued Customer",
+                                    to_email=promoted.email,
+                                    waitlist_code=promoted.waitlist_code,
+                                    topic_label=TOPIC_LABELS.get(promoted.topic, promoted.topic),
+                                    slot_ist=result.freed_slot.start_ist_str(),
+                                )
+                            except Exception:
+                                pass  # Email unavailable — slot still freed
                 except Exception:
                     pass
+            # Cancel in Google Calendar and update Google Sheets
+            if code:
+                try:
+                    from src.mcp.mcp_orchestrator import cancel_booking_mcp_sync
+                    mcp_res = cancel_booking_mcp_sync(code)
+                    _log.info("Cancel MCP result for %s: %s", code, mcp_res.summary())
+                except Exception as _exc:
+                    _log.error("cancel_booking_mcp_sync failed for %s: %s", code, _exc)
             ctx.current_state = DialogueState.END
             return ctx, _s("cancel_done").format(code=code) + promotion_note
 

@@ -139,6 +139,46 @@ _SPECIFIC_TIME_REGEX = re.compile(
 )
 
 
+_SAFE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+def _extract_booking_code(text: str) -> str | None:
+    """
+    Robustly extract a booking code from transcribed speech.
+
+    Whisper produces many variations of a spoken 'NL-AB23':
+      - NL-AB23   (ideal)
+      - NL AB23   (no hyphen)
+      - N L A B 2 3   (spaced letters)
+      - en el AB23  (Whisper hears 'NL' as Spanish 'en el')
+      - NL - A B 2 3  (mixed spacing)
+    Returns a normalised 'NL-XXXX' string, or None if not found.
+    """
+    upper = text.upper()
+
+    # 1. Ideal: NL followed by optional separator and exactly 4 alphanum chars
+    m = re.search(r'\bNL[\s\-]*([A-Z0-9]\s*[A-Z0-9]\s*[A-Z0-9]\s*[A-Z0-9])\b', upper)
+    if m:
+        code = re.sub(r'\s+', '', m.group(1))
+        if len(code) == 4:
+            return f"NL-{code}"
+
+    # 2. "en el" spoken as the prefix (Whisper hears NL as Spanish)
+    m = re.search(r'\bEN\s+EL[\s\-]*([A-Z0-9]\s*[A-Z0-9]\s*[A-Z0-9]\s*[A-Z0-9])\b', upper)
+    if m:
+        code = re.sub(r'\s+', '', m.group(1))
+        if len(code) == 4:
+            return f"NL-{code}"
+
+    # 3. N<space>L with spaced-out suffix: N L A B 2 3
+    m = re.search(
+        r'\bN\s+L[\s\-]*([A-Z0-9])\s+([A-Z0-9])\s+([A-Z0-9])\s+([A-Z0-9])\b', upper
+    )
+    if m:
+        return f"NL-{m.group(1)}{m.group(2)}{m.group(3)}{m.group(4)}"
+
+    return None
+
+
 def _extract_day_preference(low: str) -> str | None:
     """
     Extract a day/date preference from lowercased user input.
@@ -271,7 +311,13 @@ def _rule_based_parse(user_input: str, ctx: DialogueContext) -> LLMResponse:
         intent = "reschedule"
     elif any(w in low for w in ["cancel", "delete my booking", "abort", "drop my", "i won't be able"]):
         intent = "cancel"
-    elif any(w in low for w in ["what to bring", "what to prepare", "what do i need", "documents", "do i need"]):
+    elif any(w in low for w in [
+        "what to bring", "what to prepare", "what do i need", "documents needed",
+        "documents required", "do i need", "what documents", "what should i bring",
+        "what should i carry", "what should i have", "what to keep ready",
+        "kya chahiye", "kya lana", "kya leke", "kya taiyar", "documents for",
+        "required documents", "checklist",
+    ]):
         intent = "what_to_prepare"
     elif any(w in low for w in ["available", "availability", "when can i", "free slot"]):
         intent = "check_availability"
@@ -293,9 +339,9 @@ def _rule_based_parse(user_input: str, ctx: DialogueContext) -> LLMResponse:
         slots["time_preference"] = time_pref
 
     # Booking code
-    code_match = re.search(r"\bNL-[A-Z0-9]{4}\b", user_input.upper())
-    if code_match:
-        slots["existing_booking_code"] = code_match.group(0)
+    _code = _extract_booking_code(user_input)
+    if _code:
+        slots["existing_booking_code"] = _code
 
     speech = "Got it, let me help you with that."
     return LLMResponse(
@@ -327,9 +373,13 @@ def _parse_llm_json(raw: str, user_input: str) -> LLMResponse:
     slots: dict = {}
     if raw_slots.get("topic") in VALID_TOPICS:
         slots["topic"] = raw_slots["topic"]
-    for key in ("day_preference", "time_preference", "existing_booking_code"):
+    for key in ("day_preference", "time_preference"):
         if raw_slots.get(key):
             slots[key] = raw_slots[key]
+    # Normalise booking code from LLM (may have spaces/wrong format)
+    if raw_slots.get("existing_booking_code"):
+        _llm_code = _extract_booking_code(raw_slots["existing_booking_code"]) or raw_slots["existing_booking_code"].strip().upper()
+        slots["existing_booking_code"] = _llm_code
 
     flag = data.get("compliance_flag")
     if flag not in (None, "refuse_advice", "refuse_pii", "out_of_scope"):
