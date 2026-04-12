@@ -747,7 +747,11 @@ class DialogueFSM:
         # but we must stay in the reschedule flow.
         _mid_reschedule_slot_collect = (
             ctx.intent == "reschedule"
-            and ctx.current_state == DialogueState.TIME_PREFERENCE_COLLECTED
+            and ctx.current_state in (
+                DialogueState.TIME_PREFERENCE_COLLECTED,
+                DialogueState.SLOTS_OFFERED,
+                DialogueState.SLOT_CONFIRMED,
+            )
         )
         if _post_disclaimer and llm_response.intent == "book_new" and ctx.intent in (
             "cancel", "reschedule", "check_availability", "what_to_prepare"
