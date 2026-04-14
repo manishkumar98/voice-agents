@@ -10,6 +10,8 @@ confirms the booking, generates a booking code, and triggers Google Calendar / S
 
 **Streamlit App:** [https://voice-agents-production-3f40.up.railway.app](https://voice-agents-production-3f40.up.railway.app)
 
+**Bookings Sheet:** [Advisor Pre-Bookings (Google Sheet)](https://docs.google.com/spreadsheets/d/1rIGbbWXwfEJW7Y77iFGqpjbN5UK_Ef1gJMM6O6asJiI/edit)
+
 Supports **Voice mode** (microphone → Whisper STT → Sarvam TTS) and **Text mode**.
 Available in **English (en-IN)** and **हिंदी (hi-IN)**.
 
@@ -194,6 +196,173 @@ voice-agents/
 | W4 | AI Agents & Protocols | 16-state FSM slot-filling; reschedule/cancel/waitlist flows |
 | W2 | LLMs & Prompting | Safe disclaimers, refusals, bilingual prompts, TTS-optimised phrasing |
 | W7 | Designing for AI Products | Booking-code UX, secure URL, compliance microcopy, ZAY-G UI |
+
+---
+
+## Prompts Used
+
+### 1. LLM System Prompt — Intent Router
+
+Used in [`phase2/src/dialogue/intent_router.py`](phase2/src/dialogue/intent_router.py) to classify every user utterance.
+Primary model: **Groq llama-3.3-70b-versatile** → fallback: **Anthropic claude-haiku-4-5**.
+
+```
+You are an intent-extraction engine for a voice-based advisor appointment scheduler.
+
+Your ONLY job is to classify the user's intent and extract slot values. You must NEVER give investment advice.
+
+VALID INTENTS:
+- book_new            : user wants to book a new appointment
+- reschedule          : user wants to reschedule an existing booking
+- cancel              : user wants to cancel an existing booking
+- what_to_prepare     : user asks what to bring / prepare for a meeting
+- check_availability  : user asks about available time slots
+- refuse_advice       : user is asking for investment advice or market predictions (must be refused)
+- refuse_pii          : user has shared personal information (phone/email/ID/account number/DOB/SSN)
+- timezone_query      : user asks what IST maps to in their local timezone or timezone conversion
+- out_of_scope        : anything else not related to scheduling
+- end_call            : user wants to stop, leave, not proceed, or end the conversation
+
+VALID TOPICS (only for book_new, reschedule, what_to_prepare):
+- kyc_onboarding      : KYC, onboarding, account opening, identity verification, fund transfer setup
+- sip_mandates        : SIP, auto-debit, mandate, systematic investment plan
+- statements_tax      : statement, tax document, capital gains, Form 26AS, ELSS, visa letter
+- withdrawals         : withdraw, redeem, payout, exit, close account, pension, money out
+- account_changes     : nominee, bank change, address update, joint account, beneficiary, moving abroad
+
+SLOTS to extract (include only when present):
+- topic              : one of the valid topics above
+- day_preference     : e.g. "Monday", "tomorrow", "next week", "this week", "10th April"
+- time_preference    : e.g. "morning", "afternoon", "3pm", "10:30am", "any time", "flexible"
+- existing_booking_code : alphanumeric code from user (for reschedule/cancel)
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "intent": "<intent>",
+  "slots": {
+    "topic": "<topic or omit>",
+    "day_preference": "<day or omit>",
+    "time_preference": "<time or omit>",
+    "existing_booking_code": "<code or omit>"
+  },
+  "speech": "<one short sentence acknowledgement, NO advice>",
+  "compliance_flag": null
+}
+
+If intent is refuse_advice, set compliance_flag to "refuse_advice".
+If intent is refuse_pii, set compliance_flag to "refuse_pii".
+If intent is out_of_scope, set compliance_flag to "out_of_scope".
+Otherwise compliance_flag must be null.
+```
+
+**Hindi addendum** (appended when language is `hi-IN`):
+```
+IMPORTANT: The user is speaking Hindi.
+The "speech" field in your JSON response MUST be in Hindi (Devanagari script).
+All acknowledgements, questions, and responses must be in Hindi.
+```
+
+**User message template** (context injected with every turn):
+```
+[Context]
+Current state: {state_name}
+Slots already filled: {filled_slots_json}
+Current intent: {intent}
+
+[User said]
+{user_input}
+```
+
+---
+
+### 2. FSM Dialogue Strings — English (en-IN)
+
+Hardcoded in [`phase2/src/dialogue/fsm.py`](phase2/src/dialogue/fsm.py). No LLM used — deterministic, compliance-safe.
+
+| Key | Agent Says |
+|-----|------------|
+| `greeting` | "Hello! I'm the Advisor Scheduling assistant. I can help you book, reschedule, or cancel advisor consultations for topics like KYC, SIP, tax documents, withdrawals, or account changes. I can also check available slots or tell you what to prepare." |
+| `disclaimer` | "Quick note: our advisors provide informational guidance only, not investment advice under SEBI regulations. No personal details are collected on this call. Shall we continue?" |
+| `topic_prompt` | "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax documents, withdrawals and timelines, or account changes and nominee updates." |
+| `topic_clarity` | "To connect you with the right advisor, I need you to choose one specific topic: KYC and onboarding, SIP and mandates, statements and tax documents, withdrawals and timelines, or account changes. Which one applies to you?" |
+| `time_prompt` | "What day and time works best for you this week or next?" |
+| `refusal_advice` | "I'm not able to provide investment advice on this call. For investor education, you can visit SEBI's portal at investor.sebi.gov.in, or AMFI India at amfiindia.com/investor-corner. I can help you book a consultation with a human advisor. Would you like to do that?" |
+| `refusal_pii` | "Please don't share personal details on this call. You'll receive a secure link after booking to submit your contact information." |
+| `out_of_scope` | "I'm only able to help with advisor appointment scheduling today." |
+| `timezone` | "All our appointment slots are in IST (India Standard Time, UTC+5:30). Please use a timezone converter to find your local equivalent. Would you like to book a slot?" |
+| `farewell` | "Thank you for calling. Have a great day!" |
+| `end_call` | "Thank you for reaching out. We'll be happy to help whenever you're ready. Have a wonderful day!" |
+| `waitlist` | "I've added you to the waitlist. You'll receive a secure link to submit your contact details — we'll email you as soon as a matching slot opens up." |
+| `booking_code_prompt` | "Please share your booking code so I can find your appointment." |
+| `prepare_kyc_onboarding` | "For a KYC and Onboarding session, please keep the following ready: a government-issued photo ID — Aadhaar card, PAN card, or passport; an address proof such as a utility bill or bank statement; a cancelled cheque or recent bank statement for account linking; and your existing account or folio details if you have any. You don't need to share these on this call — bring them to the advisor session. Would you like to book an appointment?" |
+| `prepare_sip_mandates` | "For a SIP and Mandates session, please keep ready: your bank account number and IFSC code for mandate setup; your existing folio or portfolio number if applicable; and the SIP amount and frequency you have in mind. Would you like to book an appointment?" |
+| `prepare_statements_tax` | "For a Statements and Tax Documents session, please keep ready: your PAN card; your broker or fund house login credentials or account number; and the financial year or date range you need statements for. Would you like to book an appointment?" |
+| `prepare_withdrawals` | "For a Withdrawals and Timelines session, please keep ready: your folio number or account details; your bank account details for redemption credit; and any specific fund or amount you wish to withdraw. Would you like to book an appointment?" |
+| `prepare_account_changes` | "For an Account Changes and Nominee Updates session, please keep ready: a government-issued photo ID; your existing account or folio number; nominee details including name, date of birth, and relationship; and supporting documents for any name or address change. Would you like to book an appointment?" |
+
+---
+
+### 3. FSM Dialogue Strings — Hindi (hi-IN)
+
+Full Hindi equivalents of all strings above. Key examples:
+
+| Key | Agent Says |
+|-----|------------|
+| `greeting` | "नमस्ते! मैं Advisor Scheduling सहायक हूँ। बुकिंग, रिशेड्यूल, कैंसिल, स्लॉट देखना, या तैयारी की जानकारी — KYC, SIP, टैक्स, निकासी, या खाते में बदलाव के लिए।" |
+| `disclaimer` | "एक जानकारी: सलाहकार केवल जानकारी देते हैं, निवेश सलाह नहीं। कॉल पर कोई व्यक्तिगत जानकारी नहीं ली जाती। क्या हम आगे बढ़ें?" |
+| `topic_prompt` | "बढ़िया। आप किस विषय पर चर्चा करना चाहते हैं? KYC और ऑनबोर्डिंग, SIP और मैंडेट, स्टेटमेंट और टैक्स दस्तावेज़, निकासी, या खाते में बदलाव और नॉमिनी अपडेट।" |
+| `time_prompt` | "इस सप्ताह या अगले सप्ताह कौन सा दिन और समय आपके लिए सुविधाजनक है?" |
+| `refusal_advice` | "मैं इस कॉल पर निवेश सलाह देने में असमर्थ हूँ। SEBI का पोर्टल investor.sebi.gov.in या AMFI India का amfiindia.com/investor-corner देख सकते हैं। क्या आप बुकिंग करना चाहेंगे?" |
+| `refusal_pii` | "कृपया इस कॉल पर व्यक्तिगत जानकारी साझा न करें। बुकिंग के बाद आपको एक सुरक्षित लिंक मिलेगा।" |
+| `out_of_scope` | "मैं केवल सलाहकार अपॉइंटमेंट शेड्यूलिंग में मदद कर सकता हूँ।" |
+
+---
+
+### 4. Compliance Guard Safe Responses
+
+Hardcoded in [`phase2/src/dialogue/compliance_guard.py`](phase2/src/dialogue/compliance_guard.py). Applied as a final safety layer before any response reaches the user.
+
+```
+Advice refusal:
+"I'm not able to provide investment advice. I can help you book a consultation with an advisor. Would you like to schedule one?"
+
+PII refusal:
+"Please don't share personal details on this call. You'll receive a secure link after booking to submit your contact information."
+
+Out-of-scope:
+"I'm only able to help with advisor appointment scheduling today."
+```
+
+---
+
+### 5. Advisor Approval Email
+
+Auto-drafted in Gmail when a booking is confirmed ([`phase4/src/mcp/email_tool.py`](phase4/src/mcp/email_tool.py)).
+
+**Subject:**
+```
+[Pre-Booking] {topic_label} — {booking_code} — {slot_start_ist}
+```
+
+**Body (HTML):** Addressed to the advisor, contains a table with booking code, topic, IST slot, advisor ID, status (TENTATIVE), calendar event ID, call ID, and created timestamp. Advisor clicks Send manually — no automatic PII transmission.
+
+---
+
+### 6. Google Calendar Event
+
+Created as a TENTATIVE hold in [`phase4/src/mcp/calendar_tool.py`](phase4/src/mcp/calendar_tool.py).
+
+```
+Title:       Advisor Q&A — {topic_label} — {booking_code}
+
+Description:
+  Pre-booking via Voice Agent
+  Booking Code : {booking_code}
+  Topic        : {topic_label}
+  Advisor ID   : {advisor_id}
+  Call ID      : {call_id}
+  Created      : {created_at_ist}
+```
 
 ---
 
