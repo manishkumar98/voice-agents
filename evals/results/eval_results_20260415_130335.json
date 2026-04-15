@@ -1,0 +1,458 @@
+{
+  "timestamp": "20260415_130335",
+  "mode": "offline",
+  "results": {
+    "conversation_flows": {
+      "eval": "conversation_flows",
+      "total": 10,
+      "passed": 8,
+      "pass_rate": 0.8,
+      "failures": [
+        {
+          "id": "flow_004",
+          "description": "Cancel flow \u2014 user provides code and confirms",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "cancel my booking NL-CD45",
+              "expected_state": null,
+              "actual_state": "CANCEL_CODE_COLLECTED",
+              "state_match": true,
+              "response_preview": "Please share your booking code so I can find your appointment."
+            },
+            {
+              "user": "yes please cancel it",
+              "expected_state": "END",
+              "actual_state": "CANCEL_CONFIRM",
+              "state_match": false,
+              "response_preview": "Just to confirm \u2014 you'd like to cancel booking NL-CD45. Say yes to confirm the cancellation, or no to keep it."
+            }
+          ],
+          "expected_final_state": "END",
+          "actual_final_state": "CANCEL_CONFIRM",
+          "final_state_match": false,
+          "booking_code": null,
+          "topic": null,
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": false
+        },
+        {
+          "id": "flow_010",
+          "description": "Happy path \u2014 Hindi booking, withdrawals topic",
+          "turns": [
+            {
+              "user": "haan",
+              "expected_state": null,
+              "actual_state": "INTENT_IDENTIFIED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "mujhe withdrawal ke liye appointment book karni hai kal dopahar",
+              "expected_state": null,
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": true,
+              "response_preview": "What day and time works best for you this week or next?"
+            },
+            {
+              "user": "pehla option",
+              "expected_state": null,
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": true,
+              "response_preview": "What day and time works best for you this week or next?"
+            },
+            {
+              "user": "haan confirm karo",
+              "expected_state": "BOOKING_COMPLETE",
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": false,
+              "response_preview": "What day and time works best for you this week or next?"
+            }
+          ],
+          "expected_final_state": "BOOKING_COMPLETE",
+          "actual_final_state": "TOPIC_COLLECTED",
+          "final_state_match": false,
+          "booking_code": null,
+          "topic": "withdrawals",
+          "booking_code_ok": false,
+          "topic_ok": true,
+          "passed": false
+        }
+      ],
+      "results": [
+        {
+          "id": "flow_001",
+          "description": "Happy path \u2014 new booking, KYC, Monday morning",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "I want to book an appointment for KYC on Monday morning",
+              "expected_state": null,
+              "actual_state": "SLOTS_OFFERED",
+              "state_match": true,
+              "response_preview": "I only have 1 slot on Monday at morning. Here are the two closest available options: Option 1: Tuesday, 21/04/2026 at 10"
+            },
+            {
+              "user": "first option",
+              "expected_state": null,
+              "actual_state": "SLOT_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Perfect. Confirming: KYC and Onboarding consultation on Tuesday, 21/04/2026 at 10:00 AM IST. Is that correct?"
+            },
+            {
+              "user": "yes confirm",
+              "expected_state": "BOOKING_COMPLETE",
+              "actual_state": "BOOKING_COMPLETE",
+              "state_match": true,
+              "response_preview": "Your booking is confirmed. KYC and Onboarding on Tuesday, 21/04/2026 at 10:00 AM IST. Your booking code is N L,  E V A L"
+            }
+          ],
+          "expected_final_state": "BOOKING_COMPLETE",
+          "actual_final_state": "BOOKING_COMPLETE",
+          "final_state_match": true,
+          "booking_code": "NL-EVAL01",
+          "topic": "kyc_onboarding",
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_002",
+          "description": "Happy path \u2014 new booking, SIP, flexible timing",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "I want to book an appointment for SIP mandate setup any time this week",
+              "expected_state": null,
+              "actual_state": "SLOTS_OFFERED",
+              "state_match": true,
+              "response_preview": "I only have 1 slot on this week. Here are the two closest available options: Option 1: Tuesday, 21/04/2026 at 10:00 AM I"
+            },
+            {
+              "user": "second option",
+              "expected_state": null,
+              "actual_state": "SLOT_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Perfect. Confirming: SIP and Mandates consultation on Wednesday, 22/04/2026 at 02:00 PM IST. Is that correct?"
+            },
+            {
+              "user": "yes confirm",
+              "expected_state": "BOOKING_COMPLETE",
+              "actual_state": "BOOKING_COMPLETE",
+              "state_match": true,
+              "response_preview": "Your booking is confirmed. SIP and Mandates on Wednesday, 22/04/2026 at 02:00 PM IST. Your booking code is N L,  E V A L"
+            }
+          ],
+          "expected_final_state": "BOOKING_COMPLETE",
+          "actual_final_state": "BOOKING_COMPLETE",
+          "final_state_match": true,
+          "booking_code": "NL-EVAL01",
+          "topic": "sip_mandates",
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_003",
+          "description": "Reschedule flow \u2014 user provides code, picks new slot",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "I want to reschedule my appointment",
+              "expected_state": null,
+              "actual_state": "RESCHEDULE_CODE_COLLECTED",
+              "state_match": true,
+              "response_preview": "Please share your booking code so I can find your appointment."
+            },
+            {
+              "user": "NL-AB23",
+              "expected_state": null,
+              "actual_state": "TIME_PREFERENCE_COLLECTED",
+              "state_match": true,
+              "response_preview": "I found your booking NL-AB23. What new day and time works for you?"
+            },
+            {
+              "user": "next Tuesday afternoon",
+              "expected_state": null,
+              "actual_state": "SLOTS_OFFERED",
+              "state_match": true,
+              "response_preview": "I only have 1 slot on next Tuesday at afternoon. Here are the two closest available options: Option 1: Tuesday, 21/04/20"
+            },
+            {
+              "user": "first one",
+              "expected_state": null,
+              "actual_state": "SLOT_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Perfect. Confirming: your topic consultation on Tuesday, 21/04/2026 at 10:00 AM IST. Is that correct?"
+            },
+            {
+              "user": "yes",
+              "expected_state": "BOOKING_COMPLETE",
+              "actual_state": "BOOKING_COMPLETE",
+              "state_match": true,
+              "response_preview": "Done! Your KYC and Onboarding consultation has been rescheduled to Tuesday, 21/04/2026 at 10:00 AM IST. Your booking cod"
+            }
+          ],
+          "expected_final_state": "BOOKING_COMPLETE",
+          "actual_final_state": "BOOKING_COMPLETE",
+          "final_state_match": true,
+          "booking_code": "NL-AB23",
+          "topic": "kyc_onboarding",
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_004",
+          "description": "Cancel flow \u2014 user provides code and confirms",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "cancel my booking NL-CD45",
+              "expected_state": null,
+              "actual_state": "CANCEL_CODE_COLLECTED",
+              "state_match": true,
+              "response_preview": "Please share your booking code so I can find your appointment."
+            },
+            {
+              "user": "yes please cancel it",
+              "expected_state": "END",
+              "actual_state": "CANCEL_CONFIRM",
+              "state_match": false,
+              "response_preview": "Just to confirm \u2014 you'd like to cancel booking NL-CD45. Say yes to confirm the cancellation, or no to keep it."
+            }
+          ],
+          "expected_final_state": "END",
+          "actual_final_state": "CANCEL_CONFIRM",
+          "final_state_match": false,
+          "booking_code": null,
+          "topic": null,
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": false
+        },
+        {
+          "id": "flow_005",
+          "description": "Cancel flow \u2014 user says no at confirmation, aborts cancel",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "cancel NL-CD45",
+              "expected_state": null,
+              "actual_state": "CANCEL_CODE_COLLECTED",
+              "state_match": true,
+              "response_preview": "Please share your booking code so I can find your appointment."
+            },
+            {
+              "user": "no keep it",
+              "expected_state": null,
+              "actual_state": "END",
+              "state_match": true,
+              "response_preview": "Thank you for reaching out. We'll be happy to help whenever you're ready. Have a wonderful day!"
+            }
+          ],
+          "expected_final_state": null,
+          "actual_final_state": "END",
+          "final_state_match": true,
+          "booking_code": null,
+          "topic": null,
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_006",
+          "description": "What to prepare \u2014 user asks after disclaimer",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "DISCLAIMER_CONFIRMED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "what documents do I need for KYC?",
+              "expected_state": null,
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": true,
+              "response_preview": "For a KYC and Onboarding session, please keep the following ready. First, a government-issued photo ID \u2014 Aadhaar card, P"
+            }
+          ],
+          "expected_final_state": null,
+          "actual_final_state": "TOPIC_COLLECTED",
+          "final_state_match": true,
+          "booking_code": null,
+          "topic": "kyc_onboarding",
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_007",
+          "description": "Compliance \u2014 advice request refused, no booking",
+          "turns": [
+            {
+              "user": "yes",
+              "expected_state": null,
+              "actual_state": "INTENT_IDENTIFIED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "Which mutual fund should I invest in?",
+              "expected_state": null,
+              "actual_state": "INTENT_IDENTIFIED",
+              "state_match": true,
+              "response_preview": "I'm not able to provide investment advice on this call. For investor education, you can visit SEBI's portal at investor "
+            }
+          ],
+          "expected_final_state": null,
+          "actual_final_state": "INTENT_IDENTIFIED",
+          "final_state_match": true,
+          "booking_code": null,
+          "topic": null,
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_008",
+          "description": "No-input 3 times \u2192 ERROR state",
+          "turns": [
+            {
+              "user": "",
+              "expected_state": null,
+              "actual_state": "GREETED",
+              "state_match": true,
+              "response_preview": "Sorry, I didn't catch that. Shall we continue?"
+            },
+            {
+              "user": "",
+              "expected_state": null,
+              "actual_state": "GREETED",
+              "state_match": true,
+              "response_preview": "Sorry, I didn't catch that. Shall we continue?"
+            },
+            {
+              "user": "",
+              "expected_state": "ERROR",
+              "actual_state": "ERROR",
+              "state_match": true,
+              "response_preview": "I'm having trouble understanding. Let me connect you with our support team. Goodbye."
+            }
+          ],
+          "expected_final_state": "ERROR",
+          "actual_final_state": "ERROR",
+          "final_state_match": true,
+          "booking_code": null,
+          "topic": null,
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_009",
+          "description": "End call immediately after greeting",
+          "turns": [
+            {
+              "user": "no thanks goodbye",
+              "expected_state": "END",
+              "actual_state": "END",
+              "state_match": true,
+              "response_preview": "Thank you for reaching out. We'll be happy to help whenever you're ready. Have a wonderful day!"
+            }
+          ],
+          "expected_final_state": "END",
+          "actual_final_state": "END",
+          "final_state_match": true,
+          "booking_code": null,
+          "topic": null,
+          "booking_code_ok": true,
+          "topic_ok": true,
+          "passed": true
+        },
+        {
+          "id": "flow_010",
+          "description": "Happy path \u2014 Hindi booking, withdrawals topic",
+          "turns": [
+            {
+              "user": "haan",
+              "expected_state": null,
+              "actual_state": "INTENT_IDENTIFIED",
+              "state_match": true,
+              "response_preview": "Great. What topic would you like to discuss? I can help with: KYC and onboarding, SIP and mandates, statements and tax d"
+            },
+            {
+              "user": "mujhe withdrawal ke liye appointment book karni hai kal dopahar",
+              "expected_state": null,
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": true,
+              "response_preview": "What day and time works best for you this week or next?"
+            },
+            {
+              "user": "pehla option",
+              "expected_state": null,
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": true,
+              "response_preview": "What day and time works best for you this week or next?"
+            },
+            {
+              "user": "haan confirm karo",
+              "expected_state": "BOOKING_COMPLETE",
+              "actual_state": "TOPIC_COLLECTED",
+              "state_match": false,
+              "response_preview": "What day and time works best for you this week or next?"
+            }
+          ],
+          "expected_final_state": "BOOKING_COMPLETE",
+          "actual_final_state": "TOPIC_COLLECTED",
+          "final_state_match": false,
+          "booking_code": null,
+          "topic": "withdrawals",
+          "booking_code_ok": false,
+          "topic_ok": true,
+          "passed": false
+        }
+      ],
+      "elapsed_s": 36.1
+    }
+  }
+}

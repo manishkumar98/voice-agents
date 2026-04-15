@@ -1,0 +1,116 @@
+[
+  {
+    "id": "flow_001",
+    "description": "Happy path — new booking, KYC, Monday morning",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "I want to book an appointment for KYC on Monday morning", "expected_state": null},
+      {"user": "first option", "expected_state": null},
+      {"user": "yes confirm", "expected_state": "BOOKING_COMPLETE"}
+    ],
+    "expected_final_state": "BOOKING_COMPLETE",
+    "expected_topic": "kyc_onboarding",
+    "expected_booking_code_generated": true
+  },
+  {
+    "id": "flow_002",
+    "description": "Happy path — new booking, SIP, flexible timing",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "I want to book an appointment for SIP mandate setup any time this week", "expected_state": null},
+      {"user": "second option", "expected_state": null},
+      {"user": "yes confirm", "expected_state": "BOOKING_COMPLETE"}
+    ],
+    "expected_final_state": "BOOKING_COMPLETE",
+    "expected_topic": "sip_mandates",
+    "expected_booking_code_generated": true
+  },
+  {
+    "id": "flow_003",
+    "description": "Reschedule flow — user provides code, picks new slot",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "I want to reschedule my appointment", "expected_state": null},
+      {"user": "NL-AB23", "expected_state": null},
+      {"user": "next Tuesday afternoon", "expected_state": null},
+      {"user": "first one", "expected_state": null},
+      {"user": "yes", "expected_state": null}
+    ],
+    "expected_final_state": null,
+    "expected_booking_code_generated": false,
+    "expected_keeps_old_code": true
+  },
+  {
+    "id": "flow_004",
+    "description": "Cancel flow — user provides code and confirms",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "cancel my booking NL-CD45", "expected_state": null},
+      {"user": "yes", "expected_state": null}
+    ],
+    "expected_final_state": null,
+    "expected_cancelled": true
+  },
+  {
+    "id": "flow_005",
+    "description": "Cancel flow — user says no at confirmation, aborts cancel",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "cancel NL-CD45", "expected_state": null},
+      {"user": "no keep it", "expected_state": null}
+    ],
+    "expected_final_state": null,
+    "expected_cancelled": false
+  },
+  {
+    "id": "flow_006",
+    "description": "What to prepare — user asks after disclaimer",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "what documents do I need for KYC?", "expected_state": null}
+    ],
+    "expected_final_state": null,
+    "expected_topic": "kyc_onboarding"
+  },
+  {
+    "id": "flow_007",
+    "description": "Compliance — advice request refused, no booking",
+    "turns": [
+      {"user": "yes", "expected_state": null},
+      {"user": "Which mutual fund should I invest in?", "expected_state": null}
+    ],
+    "expected_final_state": null,
+    "expected_booking_code_generated": false
+  },
+  {
+    "id": "flow_008",
+    "description": "No-input 3 times → ERROR state",
+    "turns": [
+      {"user": "", "expected_state": null},
+      {"user": "", "expected_state": null},
+      {"user": "", "expected_state": "ERROR"}
+    ],
+    "expected_final_state": "ERROR"
+  },
+  {
+    "id": "flow_009",
+    "description": "End call immediately after greeting",
+    "turns": [
+      {"user": "no thanks goodbye", "expected_state": "END"}
+    ],
+    "expected_final_state": "END"
+  },
+  {
+    "id": "flow_010",
+    "description": "Happy path — Hindi booking, withdrawals topic",
+    "turns": [
+      {"user": "haan", "expected_state": null},
+      {"user": "mujhe withdrawal ke liye appointment book karni hai kal dopahar", "expected_state": null},
+      {"user": "pehla option", "expected_state": null},
+      {"user": "yes book it", "expected_state": null}
+    ],
+    "expected_final_state": null,
+    "expected_topic": "withdrawals",
+    "expected_booking_code_generated": false
+  }
+]

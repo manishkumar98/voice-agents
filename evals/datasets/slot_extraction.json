@@ -1,0 +1,122 @@
+[
+  {
+    "id": "se_001",
+    "input": "I want to book an appointment for KYC on Monday morning",
+    "expected_slots": {"topic": "kyc_onboarding", "day_preference": "monday", "time_preference": "morning"},
+    "category": "full_slots"
+  },
+  {
+    "id": "se_002",
+    "input": "SIP meeting tomorrow at 3pm",
+    "expected_slots": {"topic": "sip_mandates", "day_preference": "tomorrow", "time_preference": "3pm"},
+    "category": "full_slots"
+  },
+  {
+    "id": "se_003",
+    "input": "I need help with my tax documents, any time this week works",
+    "expected_slots": {"topic": "statements_tax", "time_preference": "any time"},
+    "category": "partial_slots"
+  },
+  {
+    "id": "se_004",
+    "input": "Can I withdraw my mutual funds? Book for Friday",
+    "expected_slots": {"topic": "withdrawals", "day_preference": "friday"},
+    "category": "partial_slots"
+  },
+  {
+    "id": "se_005",
+    "input": "I want to update my nominee, meeting on April 20th at 10am",
+    "expected_slots": {"topic": "account_changes", "time_preference": "10am"},
+    "category": "full_slots"
+  },
+  {
+    "id": "se_006",
+    "input": "Book me a slot for next Monday",
+    "expected_slots": {"day_preference": "next monday"},
+    "category": "day_only"
+  },
+  {
+    "id": "se_007",
+    "input": "I'm free tomorrow afternoon",
+    "expected_slots": {"day_preference": "tomorrow", "time_preference": "afternoon"},
+    "category": "time_slots"
+  },
+  {
+    "id": "se_008",
+    "input": "Morning works best for me, this Thursday",
+    "expected_slots": {"day_preference": "thursday", "time_preference": "morning"},
+    "category": "time_slots"
+  },
+  {
+    "id": "se_009",
+    "input": "Any weekend slot would be great",
+    "expected_slots": {"day_preference": "weekend"},
+    "category": "day_only"
+  },
+  {
+    "id": "se_010",
+    "input": "reschedule NL-AB23 to next Tuesday at 2pm",
+    "expected_slots": {"existing_booking_code": "NL-AB23", "day_preference": "next tuesday", "time_preference": "2pm"},
+    "category": "reschedule"
+  },
+  {
+    "id": "se_011",
+    "input": "reschedule N L A B 2 3 to Friday",
+    "expected_slots": {"existing_booking_code": "NL-AB23", "day_preference": "friday"},
+    "category": "reschedule_code_variations"
+  },
+  {
+    "id": "se_012",
+    "input": "cancel booking en el AB23",
+    "expected_slots": {"existing_booking_code": "NL-AB23"},
+    "category": "reschedule_code_variations"
+  },
+  {
+    "id": "se_013",
+    "input": "I want to meet at 10:30am on 6th April",
+    "expected_slots": {"time_preference": "10:30am"},
+    "category": "specific_time"
+  },
+  {
+    "id": "se_014",
+    "input": "14:00 on Wednesday is good for me",
+    "expected_slots": {"day_preference": "wednesday", "time_preference": "14:00"},
+    "category": "specific_time"
+  },
+  {
+    "id": "se_015",
+    "input": "book a slot, I am flexible on timing",
+    "expected_slots": {"time_preference": "flexible"},
+    "category": "flexible"
+  },
+  {
+    "id": "se_016",
+    "input": "onboarding appointment please, next week sometime",
+    "expected_slots": {"topic": "kyc_onboarding", "day_preference": "next week"},
+    "category": "partial_slots"
+  },
+  {
+    "id": "se_017",
+    "input": "I want to close my account, Thursday 4pm",
+    "expected_slots": {"topic": "withdrawals", "day_preference": "thursday", "time_preference": "4pm"},
+    "category": "full_slots"
+  },
+  {
+    "id": "se_018",
+    "input": "Book an appointment — I have no preference on time",
+    "expected_slots": {"time_preference": "any time"},
+    "category": "flexible"
+  },
+  {
+    "id": "se_019",
+    "input": "Can you check available slots for capital gains statement, this Saturday?",
+    "expected_slots": {"topic": "statements_tax", "day_preference": "saturday"},
+    "category": "partial_slots"
+  },
+  {
+    "id": "se_020",
+    "input": "Meeting about auto-debit mandate setup tomorrow morning",
+    "expected_slots": {"topic": "sip_mandates", "day_preference": "tomorrow", "time_preference": "morning"},
+    "category": "full_slots"
+  }
+]
