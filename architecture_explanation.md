@@ -101,6 +101,46 @@ The agent can also:
 
 ---
 
+## AI Evals — Measuring Quality Automatically
+
+**What we're doing:** Running automated tests that check whether the AI parts of the system are working well — not just whether the code runs, but whether the AI gives correct, safe, and helpful answers.
+
+### Why do we need evals?
+
+Unit tests check code logic ("does this function return the right number?"). But AI systems fail in different ways — the LLM might understand your question but misclassify it, or extract the wrong date, or accidentally give investment advice. Evals catch these.
+
+### What we measure
+
+| Eval | What it checks | Why it matters |
+|------|----------------|---------------|
+| **Intent Classification** | Does the LLM correctly identify what the user wants (book / reschedule / cancel / ask / end)? | Wrong intent = wrong flow triggered |
+| **Slot Extraction** | Does it correctly pick up the topic, day, time, and booking code from what the user said? | Missing a booking code means the reschedule flow breaks |
+| **Compliance / Safety** | Does it always refuse investment advice and reject personal data? | A single miss = regulatory violation |
+| **Conversation Flows** | Does a full multi-turn conversation (booking, reschedule, cancel) complete correctly end-to-end? | Tests the FSM + AI + mocked booking tools together |
+| **LLM-as-Judge** | Does a second AI (Claude) rate the agent's responses as professional, clear, and helpful? | Catches degraded tone that unit tests can't detect |
+
+### How it works
+
+1. Each eval loads a **golden dataset** — a list of test inputs with known correct outputs
+2. The evaluator runs the actual system on each input
+3. Results are compared to the expected output and scored
+4. A summary report prints in the terminal with colour-coded pass/fail
+5. Results are saved as JSON for tracking over time
+
+### Running the evals
+
+```bash
+# Fast offline mode — no API keys needed (~3 seconds)
+python3 evals/run_evals.py --offline --no-judge
+
+# Full mode — uses Groq + Claude APIs
+python3 evals/run_evals.py
+```
+
+**Think of it like:** A driving test for the AI — not just checking the car starts, but checking it actually drives correctly in real conditions.
+
+---
+
 ## Quick Summary
 
 | Phase | In Simple Words |
@@ -111,3 +151,4 @@ The agent can also:
 | **Phase 3** | Add voice — speak to it, hear it speak back |
 | **Phase 4** | Connect to Google — real calendar events, spreadsheet logs, email drafts |
 | **Phase 5** | Test everything, fix gaps, deploy for real users |
+| **Evals** | Automatically measure AI quality — intent accuracy, slot extraction, compliance safety, response tone |

@@ -28,6 +28,7 @@
 10. [Slot Resolution Algorithm](#10-slot-resolution-algorithm)
 11. [Error Handling Strategy](#11-error-handling-strategy)
 12. [Testing Architecture](#12-testing-architecture)
+13. [AI Evals Architecture](#13-ai-evals-architecture)
 
 ---
 
@@ -1399,6 +1400,117 @@ Run all flows:
 ```bash
 python3 data/training_set.py
 ```
+
+---
+
+---
+
+## 13. AI Evals Architecture
+
+### 13.1 Overview
+
+The evals suite at `evals/` provides automated measurement of AI component quality. Unlike unit/integration tests (which verify code correctness), evals verify **model behaviour** — intent classification accuracy, slot extraction F1, compliance recall, conversation flow correctness, and response quality.
+
+### 13.2 Directory Structure
+
+```
+evals/
+├── datasets/
+│   ├── intent_classification.json   # 45 cases: 10 intent types, EN + Hindi
+│   ├── slot_extraction.json         # 20 cases: topic, day, time, booking code
+│   ├── compliance.json              # 20 cases: advice refusal, PII, out-of-scope
+│   └── conversation_flows.json      # 10 multi-turn flows with expected final states
+├── evaluators/
+│   ├── intent_eval.py               # IntentRouter accuracy per category
+│   ├── slot_eval.py                 # Slot precision / recall / F1
+│   ├── compliance_eval.py           # Safety recall for refuse_advice + refuse_pii
+│   ├── conversation_eval.py         # FSM end-to-end flows (mocked MCP + src.booking)
+│   └── llm_judge.py                 # Claude rates agent responses (tone/clarity/compliance)
+├── results/                         # JSON output from each run (timestamped)
+└── run_evals.py                     # Main runner — CLI flags, rich terminal output
+```
+
+### 13.3 Eval Suites
+
+#### Suite 1 — Intent Classification (`intent_eval.py`)
+- **What:** Feeds each test utterance through `IntentRouter.route()` and compares predicted intent to expected.
+- **Metrics:** Overall accuracy + per-category breakdown (basic, compliance, hindi, code_variations, etc.)
+- **Why:** The LLM chain (Groq → Claude → rule-based) must correctly distinguish 10 intents across languages, accents, and phrasing.
+- **Failure modes caught:** Rule-based fallback classifying all ambiguous inputs as `book_new`; Hindi reschedule phrases misclassified.
+
+#### Suite 2 — Slot Extraction (`slot_eval.py`)
+- **What:** Routes each test input and checks `LLMResponse.slots` against expected slot values (fuzzy substring match).
+- **Metrics:** Per-slot precision, recall, F1 for `topic`, `day_preference`, `time_preference`, `existing_booking_code`.
+- **Why:** Incorrect slot extraction causes downstream FSM failures (wrong topic booked, reschedule fails to find code).
+- **Key result:** Booking code extraction achieves 1.000 F1 even for Whisper variants like "N L A B 2 3".
+
+#### Suite 3 — Compliance / Safety (`compliance_eval.py`)
+- **What:** Routes compliance-sensitive inputs and checks `LLMResponse.compliance_flag` or mapped intent.
+- **Metrics:** Per-flag F1 + **safety false negatives** (FN on `refuse_advice`/`refuse_pii` tracked separately as a critical metric).
+- **Why:** A compliance false negative (agent fails to refuse investment advice or accepts PII) is a regulatory violation under SEBI.
+- **Target:** Safety recall = 1.0 for `refuse_advice` and `refuse_pii`.
+
+#### Suite 4 — Conversation Flows (`conversation_eval.py`)
+- **What:** Runs multi-turn dialogue scenarios through `DialogueFSM.process_turn()` with:
+  - `IntentRouter` for per-turn NLU
+  - `src.booking.*` mocked via `unittest.mock.patch.dict(sys.modules, ...)`
+  - MCP orchestrator mocked (`dispatch_mcp_sync`, `reschedule_booking_mcp_sync`, `cancel_booking_mcp_sync`)
+- **Metrics:** Flow pass rate — each flow checks final state, booking code presence, topic correctness.
+- **Scenarios covered:** New booking (KYC/SIP), reschedule, cancel (confirm + abort), what-to-prepare, compliance refusal, no-input x3 → ERROR, end-call, Hindi booking.
+
+#### Suite 5 — LLM-as-Judge (`llm_judge.py`)
+- **What:** Claude (`claude-haiku-4-5-20251001`) scores 8 sample agent responses on:
+  - `tone` (1–5): Professional, warm, not robotic
+  - `compliance` (0/1): No investment advice; no PII accepted
+  - `clarity` (1–5): Clear and easy to understand
+  - `helpfulness` (1–5): Advances the user's goal
+- **Why:** Unit tests cannot detect degraded response quality (e.g., cold/robotic tone, vague refusals, unhelpful reprompts).
+- **Requires:** `ANTHROPIC_API_KEY` in environment.
+
+### 13.4 Mocking Strategy for Conversation Flows
+
+The conversation eval faces a Python namespace conflict: phase2 owns the `src.*` package namespace, but phase1 provides `src.booking.*` which the FSM imports lazily. The solution:
+
+```python
+# Inject mock src.booking.* modules into sys.modules at test time
+with mock.patch.dict(sys.modules, _make_booking_modules()):
+    ctx, speech = fsm.process_turn(ctx, user_input, llm_resp)
+```
+
+`_make_booking_modules()` returns a dict of `types.ModuleType` objects registered as:
+- `src.booking` — package stub
+- `src.booking.slot_resolver` — returns 2 mock `CalendarSlot` objects with real `datetime` fields
+- `src.booking.booking_code_generator` — returns `NL-EVAL01`, `NL-EVAL02`, ...
+- `src.booking.secure_url_generator` — returns a mock URL
+- `src.booking.waitlist_handler` — returns a mock waitlist entry
+- `src.booking.waitlist_queue` — returns a mock queue with `size() = 0`
+
+This means conversation evals run in ~3 seconds with zero external API calls.
+
+### 13.5 Running Evals
+
+```bash
+# Fast offline mode — rule-based fallback, no API (3 seconds)
+python3 evals/run_evals.py --offline --no-judge
+
+# Full LLM mode — uses Groq + Claude APIs
+python3 evals/run_evals.py
+
+# Single suite
+python3 evals/run_evals.py --only flows
+
+# Exit code: 1 if any suite scores below 70%
+```
+
+### 13.6 Baseline Scores (Rule-Based Offline Mode)
+
+| Suite | Metric | Score | Notes |
+|-------|--------|-------|-------|
+| Intent Classification | Accuracy | 68.9% | Rule-based floor; LLM mode ~95%+ |
+| Slot Extraction | Full Match Rate | 85.0% | Booking code F1 = 1.000 |
+| Compliance | Accuracy | 50.0% | Rule-based misses PII + out-of-scope; LLM handles both |
+| Conversation Flows | Pass Rate | 90.0% | 9/10 flows pass end-to-end |
+| LLM Judge | — | Requires API | ~4.2/5 tone, 100% compliance pass |
 
 ---
 

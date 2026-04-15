@@ -20,6 +20,7 @@
 13. [Observability & Compliance Logging](#13-observability--compliance-logging)
 14. [Implementation Phases](#14-implementation-phases)
 15. [Testing Strategy](#15-testing-strategy)
+15b. [AI Evals Strategy](#15b-ai-evals-strategy)
 16. [Text-Based Testing Interface (UI)](#16-text-based-testing-interface-ui)
 17. [Deployment Architecture](#17-deployment-architecture)
 
@@ -1135,6 +1136,97 @@ Warning (Slack/email):
 | 18 | Session inactive 30 min | Session expired; new call gets fresh session |
 | 19 | 50 concurrent sessions | No session bleed; all codes unique |
 | 20 | Booking code read-out | Code spoken letter-by-letter; date/time in IST confirmed |
+
+---
+
+## 15b. AI Evals Strategy
+
+### 15b.1 Why AI Evals (Beyond Unit Tests)
+
+Unit and integration tests verify code correctness — "does this function return the right value?" AI evals verify **model behaviour** under realistic conditions:
+
+- The LLM may understand a sentence but mis-route the intent
+- Slot extraction may fail silently on transcription noise ("en el AB23" → `NL-AB23`)
+- A compliance guard false negative (missing an advice request) is a regulatory violation
+- Response tone may degrade over time without any test catching it
+
+The evals suite at `evals/` runs these checks automatically and exits with code 1 if any suite scores below 70%.
+
+### 15b.2 Eval Architecture
+
+```
+evals/
+├── datasets/                     Golden test cases (JSON)
+│   ├── intent_classification.json    45 cases — 10 intents × EN + Hindi
+│   ├── slot_extraction.json          20 cases — topic/day/time/code
+│   ├── compliance.json               20 cases — advice/PII/scope
+│   └── conversation_flows.json       10 multi-turn flows
+├── evaluators/
+│   ├── intent_eval.py                IntentRouter accuracy
+│   ├── slot_eval.py                  Per-slot precision/recall/F1
+│   ├── compliance_eval.py            Safety recall (FN tracking)
+│   ├── conversation_eval.py          FSM end-to-end (mocked MCP)
+│   └── llm_judge.py                  Claude-as-judge (tone/clarity/compliance)
+├── results/                      Timestamped JSON output per run
+└── run_evals.py                  CLI runner
+```
+
+### 15b.3 Eval Suite Contracts
+
+| Suite | Input | Evaluator | Key Metric | Threshold |
+|-------|-------|-----------|------------|-----------|
+| Intent Classification | User utterance → expected intent | `IntentRouter.route()` | Accuracy | ≥ 80% (LLM mode) |
+| Slot Extraction | Utterance → expected slots dict | `IntentRouter.route()` + `slots` | Full-match rate | ≥ 85% |
+| Compliance / Safety | Sensitive utterance → expected flag | Intent + compliance_flag | Safety recall (refuse_advice, refuse_pii) | = 1.0 |
+| Conversation Flows | Turn sequence → expected final state | `DialogueFSM.process_turn()` | Pass rate | ≥ 90% |
+| LLM Judge | Agent response → quality score | `claude-haiku-4-5` | Compliance pass rate | = 1.0 |
+
+### 15b.4 Compliance Eval — Critical Safety Metric
+
+The compliance eval tracks **safety false negatives** separately from overall accuracy:
+
+```
+safety_false_negatives = FN(refuse_advice) + FN(refuse_pii)
+```
+
+A non-zero value here means the agent failed to refuse investment advice or accepted PII at least once in the test set. This is tracked as a **blocking metric** — any FN triggers a CI failure regardless of overall accuracy.
+
+### 15b.5 Conversation Flow Testing Pattern
+
+Flows run against the real FSM + IntentRouter with all external I/O mocked:
+
+```python
+# MCP tools mocked — no Google API calls
+with mock.patch.dict(sys.modules, _make_booking_modules()):   # src.booking.*
+     mock.patch("src.mcp.mcp_orchestrator.dispatch_mcp_sync", return_value=mock_mcp):
+    ctx, speech = fsm.process_turn(ctx, user_input, llm_resp)
+```
+
+Each flow asserts: final FSM state, booking code generated (or preserved for reschedule), and topic set correctly.
+
+### 15b.6 LLM-as-Judge Dimensions
+
+Claude (`claude-haiku-4-5-20251001`) rates each agent response on:
+
+| Dimension | Scale | Description |
+|-----------|-------|-------------|
+| `tone` | 1–5 | Professional, warm, not robotic |
+| `compliance` | 0/1 | No investment advice; no PII accepted |
+| `clarity` | 1–5 | Clear and easy to understand |
+| `helpfulness` | 1–5 | Advances the user's scheduling goal |
+
+### 15b.7 Running Evals
+
+```bash
+# Offline (no API, ~3 seconds) — rule-based fallback
+python3 evals/run_evals.py --offline --no-judge
+
+# Full LLM mode
+python3 evals/run_evals.py
+
+# CI integration
+python3 evals/run_evals.py --no-judge && echo "EVALS PASSED"
+```
 
 ---
 

@@ -179,11 +179,59 @@ voice-agents/
 ├── phase5/               # Streamlit UI + deployment
 │   ├── ui/app.py                    # Full production UI (voice + text, bilingual)
 │   └── docker/Dockerfile
+├── evals/                # AI Evals suite
+│   ├── datasets/              # Golden datasets (JSON)
+│   ├── evaluators/            # Intent, slot, compliance, flow, LLM-judge evaluators
+│   ├── results/               # JSON results from each eval run
+│   └── run_evals.py           # Main runner (offline + LLM mode)
 ├── railway.toml                     # Railway deployment config
 ├── requirements.txt
 ├── utterance_script.md              # Demo phrases for all 10 flows
 └── README.md                        # This file
 ```
+
+---
+
+## AI Evals
+
+The project includes a purpose-built eval suite at [`evals/`](evals/) that measures quality across four dimensions.
+
+### Run the evals
+
+```bash
+# Offline mode — rule-based fallback, no API keys needed (~3 seconds)
+python3 evals/run_evals.py --offline --no-judge
+
+# Full LLM mode — uses Groq + Claude
+python3 evals/run_evals.py
+
+# Run a single suite
+python3 evals/run_evals.py --only intent    # intent classification
+python3 evals/run_evals.py --only slots     # slot extraction
+python3 evals/run_evals.py --only compliance# safety / compliance
+python3 evals/run_evals.py --only flows     # multi-turn conversation flows
+python3 evals/run_evals.py --only judge     # LLM-as-judge response quality
+```
+
+### What is evaluated
+
+| Suite | Dataset | Metric | Offline Baseline |
+|-------|---------|--------|-----------------|
+| **Intent Classification** | 45 cases — 10 intent types, EN + Hindi | Accuracy per category | 68.9% |
+| **Slot Extraction** | 20 cases — topic, day, time, booking code | Precision / Recall / F1 per slot | 85.0% full-match |
+| **Compliance / Safety** | 20 cases — advice refusal, PII blocking, scope | Safety recall (FN = 0 target) | 83.3% advice recall |
+| **Conversation Flows** | 10 multi-turn flows (new booking, reschedule, cancel, what-to-prepare, no-input) | Pass rate (state + outcome) | 90.0% |
+| **LLM-as-Judge** | 8 sample agent responses | Tone / Clarity / Helpfulness / Compliance (Claude scores 1–5) | Requires API |
+
+### Why these evals exist
+
+- **Intent** — The LLM chain (Groq → Claude → rule-based) must classify 10 intents correctly across accents, languages, and phrasing variants.
+- **Slots** — Booking code extraction must be robust to Whisper transcription noise (e.g., "N L A B 2 3" → `NL-AB23`).
+- **Compliance** — A false negative on `refuse_advice` or `refuse_pii` is a regulatory violation. Safety recall is tracked separately.
+- **Flows** — Integration test that the FSM + router + mocked MCP complete end-to-end without getting stuck in a state.
+- **LLM Judge** — Catches degraded tone or unhelpful responses that unit tests miss.
+
+Results are saved as JSON to [`evals/results/`](evals/results/).
 
 ---
 
