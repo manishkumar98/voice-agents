@@ -10,6 +10,7 @@ Persistence to Google Sheets happens in Phase 4 (MCP layer).
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Optional
 
 import pytz
 
@@ -28,6 +29,8 @@ class WaitlistEntry:
     time_preference: str
     created_at: datetime        # IST-aware datetime
     status: str = "ACTIVE"     # ACTIVE | FULFILLED | EXPIRED | CANCELLED
+    email: Optional[str] = None   # submitted via waitlist contact form
+    name: Optional[str] = None    # submitted via waitlist contact form
 
     def to_dict(self) -> dict:
         return {
@@ -37,7 +40,25 @@ class WaitlistEntry:
             "time_preference": self.time_preference,
             "created_at": self.created_at.isoformat(),
             "status": self.status,
+            "email": self.email,
+            "name": self.name,
         }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "WaitlistEntry":
+        created = datetime.fromisoformat(d["created_at"])
+        if created.tzinfo is None:
+            created = IST.localize(created)
+        return cls(
+            waitlist_code=d["waitlist_code"],
+            topic=d["topic"],
+            day_preference=d["day_preference"],
+            time_preference=d["time_preference"],
+            created_at=created,
+            status=d.get("status", "ACTIVE"),
+            email=d.get("email"),
+            name=d.get("name"),
+        )
 
     def summary(self) -> str:
         """Human-readable one-liner for logging / TTS."""

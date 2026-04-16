@@ -18,6 +18,7 @@ class MCPPayload:
     slot_end_iso: str       # slot_start + slot_duration_minutes
     advisor_id: str
     created_at_ist: str     # "2026-04-05 14:32:00 IST"
+    status: str = "booked"  # "booked" | "waitlisted" | "cancelled"
 
 
 @dataclass

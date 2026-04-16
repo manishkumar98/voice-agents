@@ -184,6 +184,80 @@ def send_user_confirmation(
     return {"to": to_email, "booking_code": booking_code}
 
 
+def send_waitlist_notification(
+    to_name: str,
+    to_email: str,
+    waitlist_code: str,
+    topic_label: str,
+    slot_ist: str,
+) -> dict:
+    """
+    Send a slot-opened notification to a waitlisted user.
+    Called when a booking is cancelled and a waitlist entry is promoted.
+    """
+    html = f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto">
+<div style="background:linear-gradient(135deg,#16a34a,#15803d);padding:28px 32px;border-radius:12px 12px 0 0">
+  <h2 style="color:white;margin:0">🎉 Good News — Your Slot is Available!</h2>
+  <p style="color:#dcfce7;margin:6px 0 0">Advisor Scheduling — Waitlist Update</p>
+</div>
+<div style="background:#ffffff;border:1px solid #dcfce7;border-radius:0 0 12px 12px;padding:28px 32px">
+  <p>Dear <strong>{to_name}</strong>,</p>
+  <p>Great news! A slot has opened up that matches your waitlist preference.
+  You've been promoted from the waitlist and a tentative hold has been created for you.</p>
+  <table style="border-collapse:collapse;width:100%;margin:16px 0">
+    <tr style="background:#f0fdf4">
+      <td style="padding:10px 14px;border:1px solid #dcfce7;font-weight:600">Waitlist Code</td>
+      <td style="padding:10px 14px;border:1px solid #dcfce7">
+        <span style="background:#dcfce7;color:#15803d;padding:3px 10px;border-radius:6px;font-weight:700">{waitlist_code}</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 14px;border:1px solid #dcfce7;font-weight:600">Topic</td>
+      <td style="padding:10px 14px;border:1px solid #dcfce7">{topic_label}</td>
+    </tr>
+    <tr style="background:#f0fdf4">
+      <td style="padding:10px 14px;border:1px solid #dcfce7;font-weight:600">Available Slot</td>
+      <td style="padding:10px 14px;border:1px solid #dcfce7">{slot_ist} <span style="color:#15803d;font-size:0.88em">(IST)</span></td>
+    </tr>
+  </table>
+  <p style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:0.92em">
+    ⚠️ This slot is being <strong>held tentatively</strong> for you.
+    Please call us back to confirm your booking before the hold expires.
+  </p>
+  <p style="color:#6b7280;font-size:0.85em;margin-top:20px">
+    To confirm or decline this slot, please call us and quote your waitlist code <strong>{waitlist_code}</strong>.<br>
+    If you no longer need this appointment, no action is required.
+  </p>
+</div>
+</body></html>"""
+
+    plain = (
+        f"Dear {to_name},\n\n"
+        f"A slot has opened up matching your waitlist preference.\n\n"
+        f"Waitlist Code : {waitlist_code}\n"
+        f"Topic         : {topic_label}\n"
+        f"Available Slot: {slot_ist} (IST)\n\n"
+        f"Please call us back to confirm your booking. Quote your waitlist code: {waitlist_code}\n"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["From"]    = f"AdvisorBot <{config.gmail_address}>"
+    msg["To"]      = to_email
+    msg["Subject"] = f"Slot Available — {waitlist_code} | {topic_label}"
+
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP(config.gmail_smtp_host, config.gmail_smtp_port) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(config.gmail_address, config.gmail_app_password)
+        smtp.sendmail(config.gmail_address, to_email, msg.as_bytes())
+
+    return {"to": to_email, "waitlist_code": waitlist_code}
+
+
 async def draft_approval_email(payload: MCPPayload, event_id: str | None = None) -> ToolResult:
     t0 = time.monotonic()
     try:

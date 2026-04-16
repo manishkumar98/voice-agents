@@ -211,8 +211,8 @@ def _parse_time_preference(time_pref: str) -> tuple[tuple[int, int] | None, bool
             # Bare "2" with no context → assume PM (people rarely book at 2 AM)
             hour += 12
 
-        # 1-hour window centred on stated time (±1h to catch nearby slots)
-        return (max(0, hour - 1), min(23, hour + 2)), True
+        # 2-hour window starting at the stated time
+        return (hour, min(23, hour + 2)), True
 
     # ── Band-only match (morning / afternoon / evening) ───────────────────────
     # A clear time-of-day word is confident — user expressed an explicit preference

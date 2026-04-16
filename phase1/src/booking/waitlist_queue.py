@@ -18,15 +18,26 @@ Rules:
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import pytz
 
 from .slot_resolver import CalendarSlot
 from .waitlist_handler import WaitlistEntry
+
+logger = logging.getLogger(__name__)
+
+_WAITLIST_JSON_PATH = os.environ.get(
+    "WAITLIST_JSON_PATH",
+    str(Path(__file__).resolve().parents[3] / "data" / "waitlist.json"),
+)
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -93,6 +104,32 @@ class WaitlistQueue:
     def __init__(self) -> None:
         self._entries: list[WaitlistEntry] = []   # ordered by created_at
         self._lock = threading.Lock()
+        self._load()
+
+    # ── Persistence ────────────────────────────────────────────────────────────
+
+    def _load(self) -> None:
+        """Load entries from JSON file on startup."""
+        path = Path(_WAITLIST_JSON_PATH)
+        if not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self._entries = [WaitlistEntry.from_dict(d) for d in data.get("entries", [])]
+        except Exception as exc:
+            logger.warning("Waitlist JSON load failed: %s", exc)
+
+    def _save(self) -> None:
+        """Persist current entries to JSON file. Must be called with _lock held."""
+        path = Path(_WAITLIST_JSON_PATH)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"entries": [e.to_dict() for e in self._entries]}, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.warning("Waitlist JSON save failed: %s", exc)
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -104,7 +141,20 @@ class WaitlistQueue:
         with self._lock:
             self._entries.append(entry)
             self._entries.sort(key=lambda e: e.created_at)
-            return self._active_position(entry.waitlist_code)
+            pos = self._active_position(entry.waitlist_code)
+            self._save()
+            return pos
+
+    def update_email(self, waitlist_code: str, name: str, email: str) -> bool:
+        """Store contact details on an existing entry. Returns True if found."""
+        with self._lock:
+            for entry in self._entries:
+                if entry.waitlist_code == waitlist_code:
+                    entry.name = name
+                    entry.email = email
+                    self._save()
+                    return True
+        return False
 
     def on_cancellation(self, freed_slot: CalendarSlot) -> Optional[PromotionResult]:
         """
@@ -126,6 +176,7 @@ class WaitlistQueue:
                     entry.status = "FULFILLED"
                     entry.fulfilled_at = datetime.now(IST)  # type: ignore[attr-defined]
                     pos = i + 1  # 1-based position they held
+                    self._save()
                     return PromotionResult(
                         promoted_entry=entry,
                         freed_slot=freed_slot,
@@ -147,8 +198,17 @@ class WaitlistQueue:
             for entry in self._entries:
                 if entry.waitlist_code == waitlist_code and entry.status == "ACTIVE":
                     entry.status = "CANCELLED"
+                    self._save()
                     return True
         return False
+
+    def get_by_code(self, waitlist_code: str) -> Optional[WaitlistEntry]:
+        """Return entry by code, or None."""
+        with self._lock:
+            for entry in self._entries:
+                if entry.waitlist_code == waitlist_code:
+                    return entry
+        return None
 
     def active_entries(self) -> list[WaitlistEntry]:
         """Return a copy of all ACTIVE entries in FIFO order."""

@@ -261,7 +261,7 @@ def _google_synthesise(text: str, language: str = "en-IN") -> bytes:
         )
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-            speaking_rate=float(os.environ.get("TTS_PACE", "1.5")),
+            speaking_rate=float(os.environ.get("TTS_PACE", "1.0")),
             pitch=0.0,
         )
         response = client.synthesize_speech(
@@ -291,7 +291,7 @@ def _pyttsx3_synthesise(text: str) -> bytes:
         import pyttsx3  # type: ignore[import]
 
         engine = pyttsx3.init()
-        engine.setProperty("rate", int(150 * float(os.environ.get("TTS_PACE", "1.5"))))
+        engine.setProperty("rate", int(150 * float(os.environ.get("TTS_PACE", "1.0"))))
         engine.setProperty("volume", 1.0)
 
         # pyttsx3 can save to file; read back as bytes
