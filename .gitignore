@@ -25,6 +25,10 @@ data/tts_cache/
 data/logs/
 **/data/logs/
 data/raw_docs/
+**/data/waitlist.json
+
+# One-off scripts
+cleanup_script.py
 
 # Streamlit
 .streamlit/secrets.toml
