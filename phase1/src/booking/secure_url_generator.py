@@ -55,7 +55,13 @@ def generate_secure_url(
     if secret is None:
         secret = os.environ.get("SECURE_URL_SECRET", "dev_secret_change_in_production_minimum32chars")
     if domain is None:
-        domain = os.environ.get("SECURE_URL_DOMAIN", "http://localhost:8501")
+        # Explicit override → Railway auto-detected domain → local default
+        railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+        domain = (
+            os.environ.get("SECURE_URL_DOMAIN")
+            or (f"https://{railway_domain}" if railway_domain else None)
+            or "http://localhost:8501"
+        )
 
     if isinstance(slot_ist, datetime):
         slot_ist_str = slot_ist.isoformat()
